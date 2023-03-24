@@ -148,12 +148,12 @@ def _expression_collection_was_a_list(
     args: Union[Sequence[_T], Sequence[Sequence[_T]]],
 ) -> Sequence[_T]:
     if args and isinstance(args[0], (list, set, dict)) and len(args) == 1:
-        if isinstance(args[0], list):
+        if isinstance(args[0], Sequence):
             raise exc.ArgumentError(
                 f'The "{attrname}" argument to {fnname}(), when '
                 "referring to a sequence "
                 "of items, is now passed as a series of positional "
-                "elements, rather than as a list. "
+                "elements, rather than as a {type(args[0].__name__)}. "
             )
         return cast("Sequence[_T]", args[0])
 
