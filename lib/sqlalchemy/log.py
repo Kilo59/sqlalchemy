@@ -69,7 +69,7 @@ _logged_classes: Set[Type[Identified]] = set()
 def _qual_logger_name_for_cls(cls: Type[Identified]) -> str:
     return (
         getattr(cls, "_sqla_logger_namespace", None)
-        or cls.__module__ + "." + cls.__name__
+        or f"{cls.__module__}.{cls.__name__}"
     )
 
 
@@ -232,10 +232,7 @@ def instance_logger(
     """create a logger for an instance that implements :class:`.Identified`."""
 
     if instance.logging_name:
-        name = "%s.%s" % (
-            _qual_logger_name_for_cls(instance.__class__),
-            instance.logging_name,
-        )
+        name = f"{_qual_logger_name_for_cls(instance.__class__)}.{instance.logging_name}"
     else:
         name = _qual_logger_name_for_cls(instance.__class__)
 
@@ -282,10 +279,7 @@ class echo_property:
     def __get__(
         self, instance: Optional[Identified], owner: Type[Identified]
     ) -> Union[echo_property, _EchoFlagType]:
-        if instance is None:
-            return self
-        else:
-            return instance._echo
+        return self if instance is None else instance._echo
 
     def __set__(self, instance: Identified, value: _EchoFlagType) -> None:
         instance_logger(instance, echoflag=value)

@@ -95,10 +95,12 @@ class Glyph(Base):
                     continue
                 render_line.append((color, char))
             data.append(render_line)
-        width = max([len(rl) for rl in data])
+        width = max(len(rl) for rl in data)
         data = "".join(
-            "".join("%s%s" % (color, char) for color, char in render_line)
-            + ("W " * (width - len(render_line)))
+            (
+                "".join(f"{color}{char}" for color, char in render_line)
+                + "W " * (width - len(render_line))
+            )
             for render_line in data
         )
         return data, width, len(lines)
@@ -172,7 +174,7 @@ class GlyphCoordinate(Base):
             self._render_label(window, False)
 
     def _render_label(self, window, blank):
-        label = self.label if not blank else " " * len(self.label)
+        label = " " * len(self.label) if blank else self.label
         if self.x + self.width + len(self.label) < MAX_X:
             window.addstr(self.y, self.x + self.width, label)
         else:
@@ -252,10 +254,7 @@ class ArmyGlyph(EnemyGlyph):
     __mapper_args__ = {"polymorphic_identity": "army"}
 
     def glyph_for_state(self, coord, state):
-        if state["flip"]:
-            return self.alt_data
-        else:
-            return self.data
+        return self.alt_data if state["flip"] else self.data
 
 
 class SaucerGlyph(EnemyGlyph):
@@ -264,10 +263,7 @@ class SaucerGlyph(EnemyGlyph):
     __mapper_args__ = {"polymorphic_identity": "saucer"}
 
     def glyph_for_state(self, coord, state):
-        if state["flip"] == 0:
-            return self.alt_data
-        else:
-            return self.data
+        return self.alt_data if state["flip"] == 0 else self.data
 
 
 class MessageGlyph(Glyph):
@@ -295,10 +291,7 @@ class SplatGlyph(Glyph):
 
     def glyph_for_state(self, coord, state):
         age = state["tick"] - coord.tick
-        if age > 5:
-            return self.alt_data
-        else:
-            return self.data
+        return self.alt_data if age > 5 else self.data
 
 
 def init_glyph(session):

@@ -75,7 +75,7 @@ class Address(Base):
         the appropriate relationship.
 
         """
-        return getattr(self, "parent_%s" % self.discriminator)
+        return getattr(self, f"parent_{self.discriminator}")
 
     def __repr__(self):
         return "%s(street=%r, city=%r, zip=%r)" % (
@@ -104,7 +104,7 @@ def setup_listener(mapper, class_):
             Address.discriminator == discriminator,
         ),
         backref=backref(
-            "parent_%s" % discriminator,
+            f"parent_{discriminator}",
             primaryjoin=remote(class_.id) == foreign(Address.parent_id),
         ),
     )

@@ -254,11 +254,7 @@ class ExcludeConstraint(ColumnCollectionConstraint):
         super()._set_parent(table)
 
         self._render_exprs = [
-            (
-                expr if not isinstance(expr, str) else table.c[expr],
-                name,
-                operator,
-            )
+            (table.c[expr] if isinstance(expr, str) else expr, name, operator)
             for expr, name, operator in (self._render_exprs)
         ]
 

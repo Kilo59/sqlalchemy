@@ -25,28 +25,28 @@ def _oracle_create_db(cfg, eng, ident):
     # similar, so that the default tablespace is not "system"; reflection will
     # fail otherwise
     with eng.begin() as conn:
-        conn.exec_driver_sql("create user %s identified by xe" % ident)
-        conn.exec_driver_sql("create user %s_ts1 identified by xe" % ident)
-        conn.exec_driver_sql("create user %s_ts2 identified by xe" % ident)
-        conn.exec_driver_sql("grant dba to %s" % (ident,))
-        conn.exec_driver_sql("grant unlimited tablespace to %s" % ident)
-        conn.exec_driver_sql("grant unlimited tablespace to %s_ts1" % ident)
-        conn.exec_driver_sql("grant unlimited tablespace to %s_ts2" % ident)
+        conn.exec_driver_sql(f"create user {ident} identified by xe")
+        conn.exec_driver_sql(f"create user {ident}_ts1 identified by xe")
+        conn.exec_driver_sql(f"create user {ident}_ts2 identified by xe")
+        conn.exec_driver_sql(f"grant dba to {ident}")
+        conn.exec_driver_sql(f"grant unlimited tablespace to {ident}")
+        conn.exec_driver_sql(f"grant unlimited tablespace to {ident}_ts1")
+        conn.exec_driver_sql(f"grant unlimited tablespace to {ident}_ts2")
         # these are needed to create materialized views
-        conn.exec_driver_sql("grant create table to %s" % ident)
-        conn.exec_driver_sql("grant create table to %s_ts1" % ident)
-        conn.exec_driver_sql("grant create table to %s_ts2" % ident)
+        conn.exec_driver_sql(f"grant create table to {ident}")
+        conn.exec_driver_sql(f"grant create table to {ident}_ts1")
+        conn.exec_driver_sql(f"grant create table to {ident}_ts2")
 
 
 @configure_follower.for_db("oracle")
 def _oracle_configure_follower(config, ident):
-    config.test_schema = "%s_ts1" % ident
-    config.test_schema_2 = "%s_ts2" % ident
+    config.test_schema = f"{ident}_ts1"
+    config.test_schema_2 = f"{ident}_ts2"
 
 
 def _ora_drop_ignore(conn, dbname):
     try:
-        conn.exec_driver_sql("drop user %s cascade" % dbname)
+        conn.exec_driver_sql(f"drop user {dbname} cascade")
         log.info("Reaped db: %s", dbname)
         return True
     except exc.DatabaseError as err:
@@ -87,8 +87,8 @@ def _oracle_drop_db(cfg, eng, ident):
         # while there is a "kill session" command in Oracle,
         # it unfortunately does not release the connection sufficiently.
         _ora_drop_ignore(conn, ident)
-        _ora_drop_ignore(conn, "%s_ts1" % ident)
-        _ora_drop_ignore(conn, "%s_ts2" % ident)
+        _ora_drop_ignore(conn, f"{ident}_ts1")
+        _ora_drop_ignore(conn, f"{ident}_ts2")
 
 
 @stop_test_class_outside_fixtures.for_db("oracle")
@@ -170,10 +170,10 @@ def _reap_oracle_dbs(url, idents):
                 continue
             elif name in idents:
                 to_drop.add(name)
-                if "%s_ts1" % name in all_names:
-                    to_drop.add("%s_ts1" % name)
-                if "%s_ts2" % name in all_names:
-                    to_drop.add("%s_ts2" % name)
+                if f"{name}_ts1" in all_names:
+                    to_drop.add(f"{name}_ts1")
+                if f"{name}_ts2" in all_names:
+                    to_drop.add(f"{name}_ts2")
 
         dropped = total = 0
         for total, username in enumerate(to_drop, 1):
@@ -203,7 +203,7 @@ def _oracle_set_default_schema_on_connection(
     cfg, dbapi_connection, schema_name
 ):
     cursor = dbapi_connection.cursor()
-    cursor.execute("ALTER SESSION SET CURRENT_SCHEMA=%s" % schema_name)
+    cursor.execute(f"ALTER SESSION SET CURRENT_SCHEMA={schema_name}")
     cursor.close()
 
 

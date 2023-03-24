@@ -16,10 +16,7 @@ from sqlalchemy.orm.relationships import RelationshipProperty
 
 
 def col_references_table(col, table):
-    for fk in col.foreign_keys:
-        if fk.references(table):
-            return True
-    return False
+    return any(fk.references(table) for fk in col.foreign_keys)
 
 
 def _is_versioning_col(col):
@@ -54,7 +51,7 @@ def _history_mapper(local_mapper):
 
         history_table = local_mapper.local_table.to_metadata(
             local_mapper.local_table.metadata,
-            name=local_mapper.local_table.name + "_history",
+            name=f"{local_mapper.local_table.name}_history",
         )
 
         for orig_c, history_c in zip(
@@ -131,7 +128,7 @@ def _history_mapper(local_mapper):
     else:
         history_table = None
         super_history_table = super_mapper.local_table.metadata.tables[
-            super_mapper.local_table.name + "_history"
+            f"{super_mapper.local_table.name}_history"
         ]
 
         # single table inheritance.  take any additional columns that may have
@@ -176,7 +173,7 @@ def _history_mapper(local_mapper):
 
     versioned_cls = type.__new__(
         type,
-        "%sHistory" % cls.__name__,
+        f"{cls.__name__}History",
         bases,
         {"_history_mapper_configured": True},
     )

@@ -61,10 +61,8 @@ class BaseRow:
                 self,
                 "_data",
                 tuple(
-                    [
-                        proc(value) if proc else value
-                        for proc, value in zip(processors, data)
-                    ]
+                    proc(value) if proc else value
+                    for proc, value in zip(processors, data)
                 ),
             )
         else:
@@ -149,7 +147,4 @@ def rowproxy_reconstructor(
 def tuplegetter(*indexes: int) -> _TupleGetterType:
     it = operator.itemgetter(*indexes)
 
-    if len(indexes) > 1:
-        return it
-    else:
-        return lambda row: (it(row),)
+    return it if len(indexes) > 1 else (lambda row: (it(row),))

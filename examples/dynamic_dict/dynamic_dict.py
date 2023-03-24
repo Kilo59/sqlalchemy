@@ -24,8 +24,7 @@ class ProxyDict:
         return [x[0] for x in self.collection.values(descriptor)]
 
     def __getitem__(self, key):
-        x = self.collection.filter_by(**{self.keyname: key}).first()
-        if x:
+        if x := self.collection.filter_by(**{self.keyname: key}).first():
             return x
         else:
             raise KeyError(key)

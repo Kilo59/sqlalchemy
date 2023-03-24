@@ -99,10 +99,7 @@ from ... import util
 class MySQLExecutionContext_mysqldb(MySQLExecutionContext):
     @property
     def rowcount(self):
-        if hasattr(self, "_rowcount"):
-            return self._rowcount
-        else:
-            return self.cursor.rowcount
+        return self._rowcount if hasattr(self, "_rowcount") else self.cursor.rowcount
 
 
 class MySQLCompiler_mysqldb(MySQLCompiler):
@@ -132,8 +129,7 @@ class MySQLDialect_mysqldb(MySQLDialect):
         )
 
     def _parse_dbapi_version(self, version):
-        m = re.match(r"(\d+)\.(\d+)(?:\.(\d+))?", version)
-        if m:
+        if m := re.match(r"(\d+)\.(\d+)(?:\.(\d+))?", version):
             return tuple(int(x) for x in m.group(1, 2, 3) if x is not None)
         else:
             return (0, 0, 0)
@@ -162,7 +158,7 @@ class MySQLDialect_mysqldb(MySQLDialect):
 
             if charset_name is not None:
                 cursor = conn.cursor()
-                cursor.execute("SET NAMES %s" % charset_name)
+                cursor.execute(f"SET NAMES {charset_name}")
                 cursor.close()
 
         return on_connect
@@ -182,14 +178,9 @@ class MySQLDialect_mysqldb(MySQLDialect):
         # specific issue w/ the utf8mb4_bin collation and unicode returns
 
         collation = connection.exec_driver_sql(
-            "show collation where %s = 'utf8mb4' and %s = 'utf8mb4_bin'"
-            % (
-                self.identifier_preparer.quote("Charset"),
-                self.identifier_preparer.quote("Collation"),
-            )
+            f"""show collation where {self.identifier_preparer.quote("Charset")} = 'utf8mb4' and {self.identifier_preparer.quote("Collation")} = 'utf8mb4_bin'"""
         ).scalar()
-        has_utf8mb4_bin = self.server_version_info > (5,) and collation
-        if has_utf8mb4_bin:
+        if has_utf8mb4_bin := self.server_version_info > (5,) and collation:
             additional_tests = [
                 sql.collate(
                     sql.cast(
@@ -255,17 +246,16 @@ class MySQLDialect_mysqldb(MySQLDialect):
         return [[], opts]
 
     def _found_rows_client_flag(self):
-        if self.dbapi is not None:
-            try:
-                CLIENT_FLAGS = __import__(
-                    self.dbapi.__name__ + ".constants.CLIENT"
-                ).constants.CLIENT
-            except (AttributeError, ImportError):
-                return None
-            else:
-                return CLIENT_FLAGS.FOUND_ROWS
-        else:
+        if self.dbapi is None:
             return None
+        try:
+            CLIENT_FLAGS = __import__(
+                f"{self.dbapi.__name__}.constants.CLIENT"
+            ).constants.CLIENT
+        except (AttributeError, ImportError):
+            return None
+        else:
+            return CLIENT_FLAGS.FOUND_ROWS
 
     def _extract_error_code(self, exception):
         return exception.args[0]

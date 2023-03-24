@@ -981,7 +981,7 @@ class _DateTimeMixin:
         bp = self.bind_processor(dialect)
 
         def process(value):
-            return "'%s'" % bp(value)
+            return f"'{bp(value)}'"
 
         return process
 
@@ -1330,7 +1330,7 @@ class SQLiteCompiler(compiler.SQLCompiler):
         return "0"
 
     def visit_char_length_func(self, fn, **kw):
-        return "length%s" % self.function_argspec(fn)
+        return f"length{self.function_argspec(fn)}"
 
     def visit_cast(self, cast, **kwargs):
         if self.dialect.supports_cast:
@@ -1346,7 +1346,7 @@ class SQLiteCompiler(compiler.SQLCompiler):
             )
         except KeyError as err:
             raise exc.CompileError(
-                "%s is not a valid extract argument." % extract.field
+                f"{extract.field} is not a valid extract argument."
             ) from err
 
     def returning_clause(
@@ -1369,9 +1369,9 @@ class SQLiteCompiler(compiler.SQLCompiler):
         if select._offset_clause is not None:
             if select._limit_clause is None:
                 text += "\n LIMIT " + self.process(sql.literal(-1))
-            text += " OFFSET " + self.process(select._offset_clause, **kw)
+            text += f" OFFSET {self.process(select._offset_clause, **kw)}"
         else:
-            text += " OFFSET " + self.process(sql.literal(0), **kw)
+            text += f" OFFSET {self.process(sql.literal(0), **kw)}"
         return text
 
     def for_update_clause(self, select, **kw):
@@ -1388,16 +1388,10 @@ class SQLiteCompiler(compiler.SQLCompiler):
         )
 
     def visit_is_distinct_from_binary(self, binary, operator, **kw):
-        return "%s IS NOT %s" % (
-            self.process(binary.left),
-            self.process(binary.right),
-        )
+        return f"{self.process(binary.left)} IS NOT {self.process(binary.right)}"
 
     def visit_is_not_distinct_from_binary(self, binary, operator, **kw):
-        return "%s IS %s" % (
-            self.process(binary.left),
-            self.process(binary.right),
-        )
+        return f"{self.process(binary.left)} IS {self.process(binary.right)}"
 
     def visit_json_getitem_op_binary(self, binary, operator, **kw):
         if binary.type._type_affinity is sqltypes.JSON:
@@ -1427,10 +1421,7 @@ class SQLiteCompiler(compiler.SQLCompiler):
         return self.visit_empty_set_expr(type_)
 
     def visit_empty_set_expr(self, element_types, **kw):
-        return "SELECT %s FROM (SELECT %s) WHERE 1!=1" % (
-            ", ".join("1" for type_ in element_types or [INTEGER()]),
-            ", ".join("1" for type_ in element_types or [INTEGER()]),
-        )
+        return f'SELECT {", ".join("1" for _ in element_types or [INTEGER()])} FROM (SELECT {", ".join("1" for _ in element_types or [INTEGER()])}) WHERE 1!=1'
 
     def visit_regexp_match_op_binary(self, binary, operator, **kw):
         return self._generate_generic_binary(binary, " REGEXP ", **kw)
@@ -1440,7 +1431,7 @@ class SQLiteCompiler(compiler.SQLCompiler):
 
     def _on_conflict_target(self, clause, **kw):
         if clause.constraint_target is not None:
-            target_text = "(%s)" % clause.constraint_target
+            target_text = f"({clause.constraint_target})"
         elif clause.inferred_target_elements is not None:
             target_text = "(%s)" % ", ".join(
                 (
@@ -1465,10 +1456,8 @@ class SQLiteCompiler(compiler.SQLCompiler):
 
     def visit_on_conflict_do_nothing(self, on_conflict, **kw):
 
-        target_text = self._on_conflict_target(on_conflict, **kw)
-
-        if target_text:
-            return "ON CONFLICT %s DO NOTHING" % target_text
+        if target_text := self._on_conflict_target(on_conflict, **kw):
+            return f"ON CONFLICT {target_text} DO NOTHING"
         else:
             return "ON CONFLICT DO NOTHING"
 
@@ -1477,13 +1466,12 @@ class SQLiteCompiler(compiler.SQLCompiler):
 
         target_text = self._on_conflict_target(on_conflict, **kw)
 
-        action_set_ops = []
-
         set_parameters = dict(clause.update_values_to_set)
         # create a list of column assignment clauses as tuples
 
         insert_statement = self.stack[-1]["selectable"]
         cols = insert_statement.table.c
+        action_set_ops = []
         for c in cols:
             col_key = c.key
 
@@ -1497,27 +1485,21 @@ class SQLiteCompiler(compiler.SQLCompiler):
             if coercions._is_literal(value):
                 value = elements.BindParameter(None, value, type_=c.type)
 
-            else:
-                if (
+            elif (
                     isinstance(value, elements.BindParameter)
                     and value.type._isnull
                 ):
-                    value = value._clone()
-                    value.type = c.type
+                value = value._clone()
+                value.type = c.type
             value_text = self.process(value.self_group(), use_schema=False)
 
             key_text = self.preparer.quote(c.name)
-            action_set_ops.append("%s = %s" % (key_text, value_text))
+            action_set_ops.append(f"{key_text} = {value_text}")
 
         # check for names that don't match columns
         if set_parameters:
             util.warn(
-                "Additional column names not matching "
-                "any column keys in table '%s': %s"
-                % (
-                    self.current_executable.table.name,
-                    (", ".join("'%s'" % c for c in set_parameters)),
-                )
+                f"""Additional column names not matching any column keys in table '{self.current_executable.table.name}': {", ".join(f"'{c}'" for c in set_parameters)}"""
             )
             for k, v in set_parameters.items():
                 key_text = (
@@ -1529,7 +1511,7 @@ class SQLiteCompiler(compiler.SQLCompiler):
                     coercions.expect(roles.ExpressionElementRole, v),
                     use_schema=False,
                 )
-                action_set_ops.append("%s = %s" % (key_text, value_text))
+                action_set_ops.append(f"{key_text} = {value_text}")
 
         action_text = ", ".join(action_set_ops)
         if clause.update_whereclause is not None:
@@ -1537,7 +1519,7 @@ class SQLiteCompiler(compiler.SQLCompiler):
                 clause.update_whereclause, include_table=True, use_schema=False
             )
 
-        return "ON CONFLICT %s DO UPDATE SET %s" % (target_text, action_text)
+        return f"ON CONFLICT {target_text} DO UPDATE SET {action_text}"
 
 
 class SQLiteDDLCompiler(compiler.DDLCompiler):
@@ -1546,12 +1528,12 @@ class SQLiteDDLCompiler(compiler.DDLCompiler):
         coltype = self.dialect.type_compiler_instance.process(
             column.type, type_expression=column
         )
-        colspec = self.preparer.format_column(column) + " " + coltype
+        colspec = f"{self.preparer.format_column(column)} {coltype}"
         default = self.get_column_default_string(column)
         if default is not None:
             if isinstance(column.server_default.arg, ColumnElement):
-                default = "(" + default + ")"
-            colspec += " DEFAULT " + default
+                default = f"({default})"
+            colspec += f" DEFAULT {default}"
 
         if not column.nullable:
             colspec += " NOT NULL"
@@ -1560,7 +1542,7 @@ class SQLiteDDLCompiler(compiler.DDLCompiler):
                 "on_conflict_not_null"
             ]
             if on_conflict_clause is not None:
-                colspec += " ON CONFLICT " + on_conflict_clause
+                colspec += f" ON CONFLICT {on_conflict_clause}"
 
         if column.primary_key:
             if (
@@ -1584,12 +1566,12 @@ class SQLiteDDLCompiler(compiler.DDLCompiler):
                     "on_conflict_primary_key"
                 ]
                 if on_conflict_clause is not None:
-                    colspec += " ON CONFLICT " + on_conflict_clause
+                    colspec += f" ON CONFLICT {on_conflict_clause}"
 
                 colspec += " AUTOINCREMENT"
 
         if column.computed is not None:
-            colspec += " " + self.process(column.computed)
+            colspec += f" {self.process(column.computed)}"
 
         return colspec
 
@@ -1618,7 +1600,7 @@ class SQLiteDDLCompiler(compiler.DDLCompiler):
             ]
 
         if on_conflict_clause is not None:
-            text += " ON CONFLICT " + on_conflict_clause
+            text += f" ON CONFLICT {on_conflict_clause}"
 
         return text
 
@@ -1636,7 +1618,7 @@ class SQLiteDDLCompiler(compiler.DDLCompiler):
                 ]["on_conflict_unique"]
 
         if on_conflict_clause is not None:
-            text += " ON CONFLICT " + on_conflict_clause
+            text += f" ON CONFLICT {on_conflict_clause}"
 
         return text
 
@@ -1648,7 +1630,7 @@ class SQLiteDDLCompiler(compiler.DDLCompiler):
         ]
 
         if on_conflict_clause is not None:
-            text += " ON CONFLICT " + on_conflict_clause
+            text += f" ON CONFLICT {on_conflict_clause}"
 
         return text
 
@@ -1709,7 +1691,7 @@ class SQLiteDDLCompiler(compiler.DDLCompiler):
             where_compiled = self.sql_compiler.process(
                 whereclause, include_table=False, literal_binds=True
             )
-            text += " WHERE " + where_compiled
+            text += f" WHERE {where_compiled}"
 
         return text
 
@@ -2068,24 +2050,14 @@ class SQLiteDialect(default.DefaultDialect):
     def get_isolation_level(self, dbapi_connection):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA read_uncommitted")
-        res = cursor.fetchone()
-        if res:
-            value = res[0]
-        else:
-            # https://www.sqlite.org/changes.html#version_3_3_3
-            # "Optional READ UNCOMMITTED isolation (instead of the
-            # default isolation level of SERIALIZABLE) and
-            # table level locking when database connections
-            # share a common cache.""
-            # pre-SQLite 3.3.0 default to 0
-            value = 0
+        value = res[0] if (res := cursor.fetchone()) else 0
         cursor.close()
         if value == 0:
             return "SERIALIZABLE"
         elif value == 1:
             return "READ UNCOMMITTED"
         else:
-            assert False, "Unknown isolation level %s" % value
+            assert False, f"Unknown isolation level {value}"
 
     @reflection.cache
     def get_schema_names(self, connection, **kw):
@@ -2097,10 +2069,9 @@ class SQLiteDialect(default.DefaultDialect):
     def _format_schema(self, schema, table_name):
         if schema is not None:
             qschema = self.identifier_preparer.quote_identifier(schema)
-            name = f"{qschema}.{table_name}"
+            return f"{qschema}.{table_name}"
         else:
-            name = table_name
-        return name
+            return table_name
 
     def _sqlite_main_query(
         self,
@@ -2110,16 +2081,12 @@ class SQLiteDialect(default.DefaultDialect):
         sqlite_include_internal: bool,
     ):
         main = self._format_schema(schema, table)
-        if not sqlite_include_internal:
-            filter_table = " AND name NOT LIKE 'sqlite~_%' ESCAPE '~'"
-        else:
-            filter_table = ""
-        query = (
-            f"SELECT name FROM {main} "
-            f"WHERE type='{type_}'{filter_table} "
-            "ORDER BY name"
+        filter_table = (
+            ""
+            if sqlite_include_internal
+            else " AND name NOT LIKE 'sqlite~_%' ESCAPE '~'"
         )
-        return query
+        return f"SELECT name FROM {main} WHERE type='{type_}'{filter_table} ORDER BY name"
 
     @reflection.cache
     def get_table_names(
@@ -2128,8 +2095,7 @@ class SQLiteDialect(default.DefaultDialect):
         query = self._sqlite_main_query(
             "sqlite_master", "table", schema, sqlite_include_internal
         )
-        names = connection.exec_driver_sql(query).scalars().all()
-        return names
+        return connection.exec_driver_sql(query).scalars().all()
 
     @reflection.cache
     def get_temp_table_names(
@@ -2138,8 +2104,7 @@ class SQLiteDialect(default.DefaultDialect):
         query = self._sqlite_main_query(
             "sqlite_temp_master", "table", None, sqlite_include_internal
         )
-        names = connection.exec_driver_sql(query).scalars().all()
-        return names
+        return connection.exec_driver_sql(query).scalars().all()
 
     @reflection.cache
     def get_temp_view_names(
@@ -2148,8 +2113,7 @@ class SQLiteDialect(default.DefaultDialect):
         query = self._sqlite_main_query(
             "sqlite_temp_master", "view", None, sqlite_include_internal
         )
-        names = connection.exec_driver_sql(query).scalars().all()
-        return names
+        return connection.exec_driver_sql(query).scalars().all()
 
     @reflection.cache
     def has_table(self, connection, table_name, schema=None, **kw):
@@ -2175,17 +2139,14 @@ class SQLiteDialect(default.DefaultDialect):
         query = self._sqlite_main_query(
             "sqlite_master", "view", schema, sqlite_include_internal
         )
-        names = connection.exec_driver_sql(query).scalars().all()
-        return names
+        return connection.exec_driver_sql(query).scalars().all()
 
     @reflection.cache
     def get_view_definition(self, connection, view_name, schema=None, **kw):
         if schema is not None:
             qschema = self.identifier_preparer.quote_identifier(schema)
             master = f"{qschema}.sqlite_master"
-            s = ("SELECT sql FROM %s WHERE name = ? AND type='view'") % (
-                master,
-            )
+            s = f"SELECT sql FROM {master} WHERE name = ? AND type='view'"
             rs = connection.exec_driver_sql(s, (view_name,))
         else:
             try:
@@ -2204,8 +2165,7 @@ class SQLiteDialect(default.DefaultDialect):
                 )
                 rs = connection.exec_driver_sql(s, (view_name,))
 
-        result = rs.fetchall()
-        if result:
+        if result := rs.fetchall():
             return result[0].sql
         else:
             raise exc.NoSuchTableError(
@@ -2214,10 +2174,7 @@ class SQLiteDialect(default.DefaultDialect):
 
     @reflection.cache
     def get_columns(self, connection, table_name, schema=None, **kw):
-        pragma = "table_info"
-        # computed columns are threaded as hidden, they require table_xinfo
-        if self.server_version_info >= (3, 31):
-            pragma = "table_xinfo"
+        pragma = "table_xinfo" if self.server_version_info >= (3, 31) else "table_info"
         info = self._get_table_pragma(
             connection, pragma, table_name, schema=schema
         )
@@ -2300,11 +2257,10 @@ class SQLiteDialect(default.DefaultDialect):
             sqltext = ""
             if tablesql:
                 pattern = r"[^,]*\s+AS\s+\(([^,]*)\)\s*(?:virtual|stored)?"
-                match = re.search(
+                if match := re.search(
                     re.escape(name) + pattern, tablesql, re.IGNORECASE
-                )
-                if match:
-                    sqltext = match.group(1)
+                ):
+                    sqltext = match[1]
             colspec["computed"] = {"sqltext": sqltext, "persisted": persisted}
         return colspec
 
@@ -2325,10 +2281,9 @@ class SQLiteDialect(default.DefaultDialect):
         DATE and DOUBLE).
 
         """
-        match = re.match(r"([\w ]+)(\(.*?\))?", type_)
-        if match:
-            coltype = match.group(1)
-            args = match.group(2)
+        if match := re.match(r"([\w ]+)(\(.*?\))?", type_):
+            coltype = match[1]
+            args = match[2]
         else:
             coltype = ""
             args = ""
@@ -2352,9 +2307,7 @@ class SQLiteDialect(default.DefaultDialect):
                 coltype = coltype(*[int(a) for a in args])
             except TypeError:
                 util.warn(
-                    "Could not instantiate type %s with "
-                    "reflected arguments %s; using no arguments."
-                    % (coltype, args)
+                    f"Could not instantiate type {coltype} with reflected arguments {args}; using no arguments."
                 )
                 coltype = coltype()
         else:
@@ -2365,20 +2318,19 @@ class SQLiteDialect(default.DefaultDialect):
     @reflection.cache
     def get_pk_constraint(self, connection, table_name, schema=None, **kw):
         constraint_name = None
-        table_data = self._get_table_sql(connection, table_name, schema=schema)
-        if table_data:
+        if table_data := self._get_table_sql(
+            connection, table_name, schema=schema
+        ):
             PK_PATTERN = r"CONSTRAINT (\w+) PRIMARY KEY"
             result = re.search(PK_PATTERN, table_data, re.I)
-            constraint_name = result.group(1) if result else None
+            constraint_name = result[1] if result else None
 
         cols = self.get_columns(connection, table_name, schema, **kw)
         # consider only pk columns. This also avoids sorting the cached
         # value returned by get_columns
         cols = [col for col in cols if col.get("primary_key", 0) > 0]
         cols.sort(key=lambda col: col.get("primary_key"))
-        pkeys = [col["name"] for col in cols]
-
-        if pkeys:
+        if pkeys := [col["name"] for col in cols]:
             return {"constrained_columns": pkeys, "name": constraint_name}
         else:
             return ReflectionDefaults.pk_constraint()
@@ -2485,12 +2437,11 @@ class SQLiteDialect(default.DefaultDialect):
                 constrained_columns = list(
                     self._find_cols_in_sig(constrained_columns)
                 )
-                if not referred_columns:
-                    referred_columns = constrained_columns
-                else:
-                    referred_columns = list(
-                        self._find_cols_in_sig(referred_columns)
-                    )
+                referred_columns = (
+                    list(self._find_cols_in_sig(referred_columns))
+                    if referred_columns
+                    else constrained_columns
+                )
                 referred_name = referred_quoted_name or referred_name
                 options = {}
 
@@ -2542,10 +2493,7 @@ class SQLiteDialect(default.DefaultDialect):
         # use them as is as it's extremely difficult to parse inline
         # constraints
         fkeys.extend(keys_by_signature.values())
-        if fkeys:
-            return fkeys
-        else:
-            return ReflectionDefaults.foreign_keys()
+        return fkeys or ReflectionDefaults.foreign_keys()
 
     def _find_cols_in_sig(self, sig):
         for match in re.finditer(r'(?:"(.+?)")|([a-z0-9_]+)', sig, re.I):
@@ -2604,10 +2552,7 @@ class SQLiteDialect(default.DefaultDialect):
                 unique_constraints.append(parsed_constraint)
         # NOTE: auto_index_by_sig might not be empty here,
         # the PRIMARY KEY may have an entry.
-        if unique_constraints:
-            return unique_constraints
-        else:
-            return ReflectionDefaults.unique_constraints()
+        return unique_constraints or ReflectionDefaults.unique_constraints()
 
     @reflection.cache
     def get_check_constraints(self, connection, table_name, schema=None, **kw):
@@ -2631,18 +2576,13 @@ class SQLiteDialect(default.DefaultDialect):
 
             cks.append({"sqltext": match.group(2), "name": name})
         cks.sort(key=lambda d: d["name"] or "~")  # sort None as last
-        if cks:
-            return cks
-        else:
-            return ReflectionDefaults.check_constraints()
+        return cks or ReflectionDefaults.check_constraints()
 
     @reflection.cache
     def get_indexes(self, connection, table_name, schema=None, **kw):
         pragma_indexes = self._get_table_pragma(
             connection, "index_list", table_name, schema=schema
         )
-        indexes = []
-
         # regular expression to extract the filter predicate of a partial
         # index. this could fail to extract the predicate correctly on
         # indexes created like
@@ -2651,14 +2591,13 @@ class SQLiteDialect(default.DefaultDialect):
         # this case does not occur.
         partial_pred_re = re.compile(r"\)\s+where\s+(.+)", re.IGNORECASE)
 
-        if schema:
-            schema_expr = "%s." % self.identifier_preparer.quote_identifier(
-                schema
-            )
-        else:
-            schema_expr = ""
-
+        schema_expr = (
+            f"{self.identifier_preparer.quote_identifier(schema)}."
+            if schema
+            else ""
+        )
         include_auto_indexes = kw.pop("include_auto_indexes", False)
+        indexes = []
         for row in pragma_indexes:
             # ignore implicit primary key index.
             # https://www.mail-archive.com/sqlite-users@sqlite.org/msg30517.html
@@ -2689,12 +2628,9 @@ class SQLiteDialect(default.DefaultDialect):
                     # unless the regex is broken this case shouldn't happen
                     # because we know this is a partial index, so the
                     # definition sql should match the regex
-                    util.warn(
-                        "Failed to look up filter predicate of "
-                        "partial index %s" % row[1]
-                    )
+                    util.warn(f"Failed to look up filter predicate of partial index {row[1]}")
                 else:
-                    predicate = predicate_match.group(1)
+                    predicate = predicate_match[1]
                     indexes[-1]["dialect_options"]["sqlite_where"] = text(
                         predicate
                     )
@@ -2708,8 +2644,7 @@ class SQLiteDialect(default.DefaultDialect):
             for row in pragma_index:
                 if row[2] is None:
                     util.warn(
-                        "Skipped unsupported reflection of "
-                        "expression-based index %s" % idx["name"]
+                        f'Skipped unsupported reflection of expression-based index {idx["name"]}'
                     )
                     indexes.remove(idx)
                     break
@@ -2737,9 +2672,7 @@ class SQLiteDialect(default.DefaultDialect):
     @reflection.cache
     def _get_table_sql(self, connection, table_name, schema=None, **kw):
         if schema:
-            schema_expr = "%s." % (
-                self.identifier_preparer.quote_identifier(schema)
-            )
+            schema_expr = f"{self.identifier_preparer.quote_identifier(schema)}."
         else:
             schema_expr = ""
         try:
@@ -2778,14 +2711,7 @@ class SQLiteDialect(default.DefaultDialect):
         for statement in statements:
             statement = f"{statement}{pragma}({qtable})"
             cursor = connection.exec_driver_sql(statement)
-            if not cursor._soft_closed:
-                # work around SQLite issue whereby cursor.description
-                # is blank when PRAGMA returns no rows:
-                # https://www.sqlite.org/cvstrac/tktview?tn=1884
-                result = cursor.fetchall()
-            else:
-                result = []
+            result = [] if cursor._soft_closed else cursor.fetchall()
             if result:
                 return result
-        else:
-            return []
+        return []

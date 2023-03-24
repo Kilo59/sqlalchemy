@@ -30,9 +30,9 @@ def generate_driver_url(url, driver, query_str):
         if dialect_cls._is_mariadb_from_url(url):
             backend = "mariadb"
 
-    new_url = url.set(
-        drivername="%s+%s" % (backend, driver)
-    ).update_query_string(query_str)
+    new_url = url.set(drivername=f"{backend}+{driver}").update_query_string(
+        query_str
+    )
 
     try:
         new_url.get_dialect()
@@ -51,29 +51,27 @@ def _mysql_create_db(cfg, eng, ident):
             pass
 
     with eng.begin() as conn:
+        conn.exec_driver_sql(f"CREATE DATABASE {ident} CHARACTER SET utf8mb4")
         conn.exec_driver_sql(
-            "CREATE DATABASE %s CHARACTER SET utf8mb4" % ident
+            f"CREATE DATABASE {ident}_test_schema CHARACTER SET utf8mb4"
         )
         conn.exec_driver_sql(
-            "CREATE DATABASE %s_test_schema CHARACTER SET utf8mb4" % ident
-        )
-        conn.exec_driver_sql(
-            "CREATE DATABASE %s_test_schema_2 CHARACTER SET utf8mb4" % ident
+            f"CREATE DATABASE {ident}_test_schema_2 CHARACTER SET utf8mb4"
         )
 
 
 @configure_follower.for_db("mysql", "mariadb")
 def _mysql_configure_follower(config, ident):
-    config.test_schema = "%s_test_schema" % ident
-    config.test_schema_2 = "%s_test_schema_2" % ident
+    config.test_schema = f"{ident}_test_schema"
+    config.test_schema_2 = f"{ident}_test_schema_2"
 
 
 @drop_db.for_db("mysql", "mariadb")
 def _mysql_drop_db(cfg, eng, ident):
     with eng.begin() as conn:
-        conn.exec_driver_sql("DROP DATABASE %s_test_schema" % ident)
-        conn.exec_driver_sql("DROP DATABASE %s_test_schema_2" % ident)
-        conn.exec_driver_sql("DROP DATABASE %s" % ident)
+        conn.exec_driver_sql(f"DROP DATABASE {ident}_test_schema")
+        conn.exec_driver_sql(f"DROP DATABASE {ident}_test_schema_2")
+        conn.exec_driver_sql(f"DROP DATABASE {ident}")
 
 
 @temp_table_keyword_args.for_db("mysql", "mariadb")

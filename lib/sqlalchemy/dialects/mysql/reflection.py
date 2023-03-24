@@ -44,23 +44,17 @@ class MySQLTableDefinitionParser:
         state = ReflectedState()
         state.charset = charset
         for line in re.split(r"\r?\n", show_create):
-            if line.startswith("  " + self.preparer.initial_quote):
+            if line.startswith(f"  {self.preparer.initial_quote}"):
                 self._parse_column(line, state)
-            # a regular table options line
             elif line.startswith(") "):
                 self._parse_table_options(line, state)
-            # an ANSI-mode table options line
             elif line == ")":
                 pass
             elif line.startswith("CREATE "):
                 self._parse_table_name(line, state)
             elif "PARTITION" in line:
                 self._parse_partition_options(line, state)
-            # Not present in real reflection, but may be if
-            # loading from a file.
-            elif not line:
-                pass
-            else:
+            elif line:
                 type_, spec = self._parse_constraints(line)
                 if type_ is None:
                     util.warn("Unknown schema content: %r" % line)
@@ -70,8 +64,6 @@ class MySQLTableDefinitionParser:
                     state.fk_constraints.append(spec)
                 elif type_ == "ck_constraint":
                     state.ck_constraints.append(spec)
-                else:
-                    pass
         return state
 
     def _check_view(self, sql: str) -> bool:
@@ -83,9 +75,7 @@ class MySQLTableDefinitionParser:
         :param line: A line of SHOW CREATE TABLE output
         """
 
-        # KEY
-        m = self._re_key.match(line)
-        if m:
+        if m := self._re_key.match(line):
             spec = m.groupdict()
             # convert columns into name, length pairs
             # NOTE: we may want to consider SHOW INDEX as the
@@ -101,9 +91,7 @@ class MySQLTableDefinitionParser:
                 )[0]
             return "key", spec
 
-        # FOREIGN KEY CONSTRAINT
-        m = self._re_fk_constraint.match(line)
-        if m:
+        if m := self._re_fk_constraint.match(line):
             spec = m.groupdict()
             spec["table"] = self.preparer.unformat_identifiers(spec["table"])
             spec["local"] = [c[0] for c in self._parse_keyexprs(spec["local"])]
@@ -112,15 +100,11 @@ class MySQLTableDefinitionParser:
             ]
             return "fk_constraint", spec
 
-        # CHECK constraint
-        m = self._re_ck_constraint.match(line)
-        if m:
+        if m := self._re_ck_constraint.match(line):
             spec = m.groupdict()
             return "ck_constraint", spec
 
-        # PARTITION and SUBPARTITION
-        m = self._re_partition.match(line)
-        if m:
+        if m := self._re_partition.match(line):
             # Punt!
             return "partition", line
 
@@ -134,8 +118,7 @@ class MySQLTableDefinitionParser:
         """
 
         regex, cleanup = self._pr_name
-        m = regex.match(line)
-        if m:
+        if m := regex.match(line):
             state.table_name = cleanup(m.group("name"))
 
     def _parse_table_options(self, line, state):
@@ -146,10 +129,7 @@ class MySQLTableDefinitionParser:
 
         options = {}
 
-        if not line or line == ")":
-            pass
-
-        else:
+        if line and line != ")":
             rest_of_line = line[:]
             for regex, cleanup in self._pr_options:
                 m = regex.search(rest_of_line)
@@ -165,7 +145,7 @@ class MySQLTableDefinitionParser:
             options.pop(nope, None)
 
         for opt, val in options.items():
-            state.table_options["%s_%s" % (self.dialect.name, opt)] = val
+            state.table_options[f"{self.dialect.name}_{opt}"] = val
 
     def _parse_partition_options(self, line, state):
         options = {}
@@ -188,16 +168,19 @@ class MySQLTableDefinitionParser:
                 new_line = new_line.replace(",", "")
                 if is_subpartition and new_line.endswith(")"):
                     new_line = new_line[:-1]
-                if self.dialect.name == "mariadb" and new_line.endswith(")"):
-                    if (
+                if (
+                    self.dialect.name == "mariadb"
+                    and new_line.endswith(")")
+                    and (
                         "MAXVALUE" in new_line
                         or "MINVALUE" in new_line
                         or "ENGINE" in new_line
-                    ):
-                        # final line of MariaDB partition endswith ")"
-                        new_line = new_line[:-1]
+                    )
+                ):
+                    # final line of MariaDB partition endswith ")"
+                    new_line = new_line[:-1]
 
-                defs = "%s_%s_definitions" % (self.dialect.name, directive)
+                defs = f"{self.dialect.name}_{directive}_definitions"
                 options[defs] = new_line
 
             else:
@@ -208,20 +191,17 @@ class MySQLTableDefinitionParser:
                 options[directive] = value
             break
 
+        part_def = f"{self.dialect.name}_partition_definitions"
+        subpart_def = f"{self.dialect.name}_subpartition_definitions"
         for opt, val in options.items():
-            part_def = "%s_partition_definitions" % (self.dialect.name)
-            subpart_def = "%s_subpartition_definitions" % (self.dialect.name)
-            if opt == part_def or opt == subpart_def:
+            if opt in [part_def, subpart_def]:
                 # builds a string of definitions
                 if opt not in state.table_options:
                     state.table_options[opt] = val
                 else:
-                    state.table_options[opt] = "%s, %s" % (
-                        state.table_options[opt],
-                        val,
-                    )
+                    state.table_options[opt] = f"{state.table_options[opt]}, {val}"
             else:
-                state.table_options["%s_%s" % (self.dialect.name, opt)] = val
+                state.table_options[f"{self.dialect.name}_{opt}"] = val
 
     def _parse_column(self, line, state):
         """Extract column details.
@@ -232,15 +212,12 @@ class MySQLTableDefinitionParser:
         """
 
         spec = None
-        m = self._re_column.match(line)
-        if m:
+        if m := self._re_column.match(line):
             spec = m.groupdict()
             spec["full"] = True
-        else:
-            m = self._re_column_loose.match(line)
-            if m:
-                spec = m.groupdict()
-                spec["full"] = False
+        elif m := self._re_column_loose.match(line):
+            spec = m.groupdict()
+            spec["full"] = False
         if not spec:
             util.warn("Unknown column definition %r" % line)
             return
@@ -252,9 +229,7 @@ class MySQLTableDefinitionParser:
         try:
             col_type = self.dialect.ischema_names[type_]
         except KeyError:
-            util.warn(
-                "Did not recognize type '%s' of column '%s'" % (type_, name)
-            )
+            util.warn(f"Did not recognize type '{type_}' of column '{name}'")
             col_type = sqltypes.NullType
 
         # Column type positional arguments eg. varchar(32)
@@ -268,9 +243,8 @@ class MySQLTableDefinitionParser:
         # Column type keyword options
         type_kw = {}
 
-        if issubclass(col_type, (DATETIME, TIME, TIMESTAMP)):
-            if type_args:
-                type_kw["fsp"] = type_args.pop(0)
+        if issubclass(col_type, (DATETIME, TIME, TIMESTAMP)) and type_args:
+            type_kw["fsp"] = type_args.pop(0)
 
         for kw in ("unsigned", "zerofill"):
             if spec.get(kw, False):
@@ -286,10 +260,8 @@ class MySQLTableDefinitionParser:
 
         type_instance = col_type(*type_args, **type_kw)
 
-        col_kw = {}
+        col_kw = {"nullable": True}
 
-        # NOT NULL
-        col_kw["nullable"] = True
         # this can be "NULL" in the case of TIMESTAMP
         if spec.get("notnull", False) == "NOT NULL":
             col_kw["nullable"] = False
@@ -320,10 +292,10 @@ class MySQLTableDefinitionParser:
                 computed["persisted"] = persisted == "STORED"
             col_kw["computed"] = computed
 
-        col_d = dict(
-            name=name, type=type_instance, default=default, comment=comment
+        col_d = (
+            dict(name=name, type=type_instance, default=default, comment=comment)
+            | col_kw
         )
-        col_d.update(col_kw)
         state.columns.append(col_d)
 
     def _describe_to_create(self, table_name, columns):
@@ -344,8 +316,7 @@ class MySQLTableDefinitionParser:
                 row[i] for i in (0, 1, 2, 4, 5)
             )
 
-            line = [" "]
-            line.append(self.preparer.quote_identifier(name))
+            line = [" ", self.preparer.quote_identifier(name)]
             line.append(col_type)
             if not nullable:
                 line.append("NOT NULL")
@@ -362,7 +333,7 @@ class MySQLTableDefinitionParser:
                     line.append(default)
                 else:
                     line.append("DEFAULT")
-                    line.append("'%s'" % default.replace("'", "''"))
+                    line.append(f"""'{default.replace("'", "''")}'""")
             if extra:
                 line.append(extra)
 
@@ -581,10 +552,7 @@ class MySQLTableDefinitionParser:
     _optional_equals = r"(?:\s*(?:=\s*)|\s+)"
 
     def _add_option_string(self, directive):
-        regex = r"(?P<directive>%s)%s" r"'(?P<val>(?:[^']|'')*?)'(?!')" % (
-            re.escape(directive),
-            self._optional_equals,
-        )
+        regex = f"(?P<directive>{re.escape(directive)}){self._optional_equals}'(?P<val>(?:[^']|'')*?)'(?!')"
         self._pr_options.append(
             _pr_compile(
                 regex, lambda v: v.replace("\\\\", "\\").replace("''", "'")
@@ -599,12 +567,12 @@ class MySQLTableDefinitionParser:
         self._pr_options.append(_pr_compile(regex))
 
     def _add_partition_option_word(self, directive):
-        if directive == "PARTITION BY" or directive == "SUBPARTITION BY":
+        if directive in ["PARTITION BY", "SUBPARTITION BY"]:
             regex = r"(?<!\S)(?P<directive>%s)%s" r"(?P<val>\w+.*)" % (
                 re.escape(directive),
                 self._optional_equals,
             )
-        elif directive == "SUBPARTITIONS" or directive == "PARTITIONS":
+        elif directive in ["SUBPARTITIONS", "PARTITIONS"]:
             regex = r"(?<!\S)(?P<directive>%s)%s" r"(?P<val>\d+)" % (
                 re.escape(directive),
                 self._optional_equals,
@@ -614,11 +582,7 @@ class MySQLTableDefinitionParser:
         self._pr_options.append(_pr_compile(regex))
 
     def _add_option_regex(self, directive, regex):
-        regex = r"(?P<directive>%s)%s" r"(?P<val>%s)" % (
-            re.escape(directive),
-            self._optional_equals,
-            regex,
-        )
+        regex = f"(?P<directive>{re.escape(directive)}){self._optional_equals}(?P<val>{regex})"
         self._pr_options.append(_pr_compile(regex))
 
 
@@ -647,7 +611,7 @@ def _strip_values(values):
     "Strip reflected values quotes"
     strip_values = []
     for a in values:
-        if a[0:1] == '"' or a[0:1] == "'":
+        if a[:1] in ['"', "'"]:
             # strip enclosing quotes and unquote interior
             a = a[1:-1].replace(a[0] * 2, a[0])
         strip_values.append(a)

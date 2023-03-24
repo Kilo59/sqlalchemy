@@ -132,8 +132,7 @@ class MySQLDialect_mysqlconnector(MySQLDialect):
     @util.memoized_property
     def _mysqlconnector_version_info(self):
         if self.dbapi and hasattr(self.dbapi, "__version__"):
-            m = re.match(r"(\d+)\.(\d+)(?:\.(\d+))?", self.dbapi.__version__)
-            if m:
+            if m := re.match(r"(\d+)\.(\d+)(?:\.(\d+))?", self.dbapi.__version__):
                 return tuple(int(x) for x in m.group(1, 2, 3) if x is not None)
 
     def _detect_charset(self, connection):
@@ -143,9 +142,9 @@ class MySQLDialect_mysqlconnector(MySQLDialect):
         return exception.errno
 
     def is_disconnect(self, e, connection, cursor):
-        errnos = (2006, 2013, 2014, 2045, 2055, 2048)
         exceptions = (self.dbapi.OperationalError, self.dbapi.InterfaceError)
         if isinstance(e, exceptions):
+            errnos = (2006, 2013, 2014, 2045, 2055, 2048)
             return (
                 e.errno in errnos
                 or "MySQL Connection not available." in str(e)

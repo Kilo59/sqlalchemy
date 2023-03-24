@@ -23,8 +23,7 @@ def _distill_params_20(
 ) -> _CoreMultiExecuteParams:
     if params is None:
         return _no_tuple
-    # Assume list is more likely than tuple
-    elif isinstance(params, list) or isinstance(params, tuple):
+    elif isinstance(params, (list, tuple)):
         # collections_abc.MutableSequence): # avoid abc.__instancecheck__
         if params and not isinstance(params[0], (tuple, Mapping)):
             raise exc.ArgumentError(
@@ -32,12 +31,7 @@ def _distill_params_20(
             )
 
         return params
-    elif isinstance(params, dict) or isinstance(
-        # only do immutabledict or abc.__instancecheck__ for Mapping after
-        # we've checked for plain dictionaries and would otherwise raise
-        params,
-        Mapping,
-    ):
+    elif isinstance(params, (dict, Mapping)):
         return [params]
     else:
         raise exc.ArgumentError("mapping or list expected for parameters")
@@ -56,12 +50,7 @@ def _distill_raw_params(
             )
 
         return params
-    elif isinstance(params, (tuple, dict)) or isinstance(
-        # only do abc.__instancecheck__ for Mapping after we've checked
-        # for plain dictionaries and would otherwise raise
-        params,
-        Mapping,
-    ):
+    elif isinstance(params, (tuple, dict, Mapping)):
         # cast("Union[List[Mapping[str, Any]], Tuple[Any, ...]]", [params])
         return [params]  # type: ignore
     else:

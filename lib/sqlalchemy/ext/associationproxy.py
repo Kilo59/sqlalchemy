@@ -380,11 +380,7 @@ class AssociationProxy(
         self.proxy_bulk_set = proxy_bulk_set
         self.cascade_scalar_deletes = cascade_scalar_deletes
 
-        self.key = "_%s_%s_%s" % (
-            type(self).__name__,
-            target_collection,
-            id(self),
-        )
+        self.key = f"_{type(self).__name__}_{target_collection}_{id(self)}"
         if info:
             self.info = info  # type: ignore
 
@@ -417,8 +413,7 @@ class AssociationProxy(
     ) -> Union[AssociationProxyInstance[_T], _T, AssociationProxy[_T]]:
         if owner is None:
             return self
-        inst = self._as_instance(owner, instance)
-        if inst:
+        if inst := self._as_instance(owner, instance):
             return inst.get(instance)
 
         assert instance is None
@@ -474,7 +469,7 @@ class AssociationProxy(
         self, class_: Any, obj: Any
     ) -> AssociationProxyInstance[_T]:
         try:
-            inst = class_.__dict__[self.key + "_inst"]
+            inst = class_.__dict__[f"{self.key}_inst"]
         except KeyError:
             inst = None
 
@@ -483,7 +478,7 @@ class AssociationProxy(
             owner = self._calc_owner(class_)
             if owner is not None:
                 inst = AssociationProxyInstance.for_proxy(self, owner, obj)
-                setattr(class_, self.key + "_inst", inst)
+                setattr(class_, f"{self.key}_inst", inst)
             else:
                 inst = None
 
@@ -704,9 +699,7 @@ class AssociationProxyInstance(SQLORMOperations[_T]):
     ) -> Optional[AssociationProxyInstance[_T]]:
         attr = getattr(target_class, value_attr)
         assert not isinstance(attr, AssociationProxy)
-        if isinstance(attr, AssociationProxyInstance):
-            return attr
-        return None
+        return attr if isinstance(attr, AssociationProxyInstance) else None
 
     @util.memoized_property
     def _unwrap_target_assoc_proxy(
@@ -883,11 +876,7 @@ class AssociationProxyInstance(SQLORMOperations[_T]):
         if self.scalar:
             creator = cast(
                 "_PlainCreatorProtocol[_T]",
-                (
-                    self.parent.creator
-                    if self.parent.creator
-                    else self.target_class
-                ),
+                self.parent.creator or self.target_class,
             )
             target = getattr(obj, self.target_collection)
             if target is None:
@@ -1122,10 +1111,7 @@ class AmbiguousAssociationProxyInstance(AssociationProxyInstance[_T]):
         )
 
     def get(self, obj: Any) -> Any:
-        if obj is None:
-            return self
-        else:
-            return super().get(obj)
+        return self if obj is None else super().get(obj)
 
     def __eq__(self, obj: object) -> NoReturn:
         self._ambiguous()
@@ -1223,9 +1209,9 @@ class ObjectAssociationProxyInstance(AssociationProxyInstance[_T]):
         target_assoc = self._unwrap_target_assoc_proxy
         if target_assoc is not None:
             return self._comparator._criterion_exists(
-                target_assoc.contains(other)
-                if not target_assoc.scalar
-                else target_assoc == other
+                target_assoc == other
+                if target_assoc.scalar
+                else target_assoc.contains(other)
             )
         elif (
             self._target_is_object
@@ -1235,7 +1221,7 @@ class ObjectAssociationProxyInstance(AssociationProxyInstance[_T]):
             return self._comparator.has(
                 getattr(self.target_class, self.value_attr).contains(other)
             )
-        elif self._target_is_object and self.scalar and self._value_is_scalar:
+        elif self._target_is_object and self.scalar:
             raise exc.InvalidRequestError(
                 "contains() doesn't apply to a scalar object endpoint; use =="
             )
@@ -1277,10 +1263,7 @@ class ColumnAssociationProxyInstance(AssociationProxyInstance[_T]):
         expr = self._criterion_exists(
             self.remote_attr.operate(operators.eq, other)
         )
-        if other is None:
-            return or_(expr, self._comparator == None)
-        else:
-            return expr
+        return or_(expr, self._comparator == None) if other is None else expr
 
     def operate(
         self, op: operators.OperatorType, *other: Any, **kwargs: Any
@@ -1420,10 +1403,11 @@ class _AssociationList(_AssociationSingleItem[_T], MutableSequence[_T]):
     def __getitem__(
         self, index: Union[int, slice]
     ) -> Union[_T, MutableSequence[_T]]:
-        if not isinstance(index, slice):
-            return self._get(self.col[index])
-        else:
-            return [self._get(member) for member in self.col[index]]
+        return (
+            [self._get(member) for member in self.col[index]]
+            if isinstance(index, slice)
+            else self._get(self.col[index])
+        )
 
     @overload
     def __setitem__(self, index: int, value: _T) -> None:
@@ -1445,9 +1429,8 @@ class _AssociationList(_AssociationSingleItem[_T], MutableSequence[_T]):
                 stop = len(self) + index.stop
             else:
                 stop = index.stop
-            step = index.step or 1
-
             start = index.start or 0
+            step = index.step or 1
             rng = list(range(index.start or 0, stop, step))
 
             sized_value = list(value)
@@ -1462,9 +1445,7 @@ class _AssociationList(_AssociationSingleItem[_T], MutableSequence[_T]):
             else:
                 if len(sized_value) != len(rng):
                     raise ValueError(
-                        "attempt to assign sequence of size %s to "
-                        "extended slice of size %s"
-                        % (len(sized_value), len(rng))
+                        f"attempt to assign sequence of size {len(sized_value)} to extended slice of size {len(rng)}"
                     )
                 for i, item in zip(rng, value):
                     self._set(self.col[i], item)
@@ -1481,11 +1462,7 @@ class _AssociationList(_AssociationSingleItem[_T], MutableSequence[_T]):
         del self.col[index]
 
     def __contains__(self, value: object) -> bool:
-        for member in self.col:
-            # testlib.pragma exempt:__eq__
-            if self._get(member) == value:
-                return True
-        return False
+        return any(self._get(member) == value for member in self.col)
 
     def __iter__(self) -> Iterator[_T]:
         """Iterate over proxied values.
@@ -1505,11 +1482,7 @@ class _AssociationList(_AssociationSingleItem[_T], MutableSequence[_T]):
         col.append(item)
 
     def count(self, value: Any) -> int:
-        count = 0
-        for v in self:
-            if v == value:
-                count += 1
-        return count
+        return sum(v == value for v in self)
 
     def extend(self, values: Iterable[_T]) -> None:
         for v in values:
@@ -1539,7 +1512,7 @@ class _AssociationList(_AssociationSingleItem[_T], MutableSequence[_T]):
         raise NotImplementedError()
 
     def clear(self) -> None:
-        del self.col[0 : len(self.col)]
+        del self.col[:]
 
     def __eq__(self, other: object) -> bool:
         return list(self) == other
@@ -1574,14 +1547,10 @@ class _AssociationList(_AssociationSingleItem[_T], MutableSequence[_T]):
         return other + list(self)
 
     def __mul__(self, n: SupportsIndex) -> List[_T]:
-        if not isinstance(n, int):
-            return NotImplemented
-        return list(self) * n
+        return list(self) * n if isinstance(n, int) else NotImplemented
 
     def __rmul__(self, n: SupportsIndex) -> List[_T]:
-        if not isinstance(n, int):
-            return NotImplemented
-        return n * list(self)
+        return n * list(self) if isinstance(n, int) else NotImplemented
 
     def __iadd__(self, iterable: Iterable[_T]) -> Self:
         self.extend(iterable)
@@ -1618,7 +1587,7 @@ class _AssociationList(_AssociationSingleItem[_T], MutableSequence[_T]):
         return repr(list(self))
 
     def __hash__(self) -> NoReturn:
-        raise TypeError("%s objects are unhashable" % type(self).__name__)
+        raise TypeError(f"{type(self).__name__} objects are unhashable")
 
     if not typing.TYPE_CHECKING:
         for func_name, func in list(locals().items()):
@@ -1695,16 +1664,10 @@ class _AssociationDict(_AssociationCollection[_VT], MutableMapping[_KT, _VT]):
             return default
 
     def setdefault(self, key: _KT, default: Optional[_VT] = None) -> _VT:
-        # TODO: again, no idea how to create an actual MutableMapping.
-        # default must allow None, return type can't include None,
-        # the stub explicitly allows for default of None with a cryptic message
-        # "This overload should be allowed only if the value type is
-        # compatible with None.".
-        if key not in self.col:
-            self.col[key] = self._create(key, default)
-            return default  # type: ignore
-        else:
+        if key in self.col:
             return self[key]
+        self.col[key] = self._create(key, default)
+        return default  # type: ignore
 
     def keys(self) -> KeysView[_KT]:
         return self.col.keys()
@@ -1763,11 +1726,8 @@ class _AssociationDict(_AssociationCollection[_VT], MutableMapping[_KT, _VT]):
         removals = existing.difference(constants)
 
         for key, member in values.items() or ():
-            if key in additions:
+            if key in additions or key in constants:
                 self[key] = member
-            elif key in constants:
-                self[key] = member
-
         for key in removals:
             del self[key]
 
@@ -1775,7 +1735,7 @@ class _AssociationDict(_AssociationCollection[_VT], MutableMapping[_KT, _VT]):
         return dict(self.items())
 
     def __hash__(self) -> NoReturn:
-        raise TypeError("%s objects are unhashable" % type(self).__name__)
+        raise TypeError(f"{type(self).__name__} objects are unhashable")
 
     if not typing.TYPE_CHECKING:
         for func_name, func in list(locals().items()):
@@ -1798,16 +1758,10 @@ class _AssociationSet(_AssociationSingleItem[_T], MutableSet[_T]):
         return len(self.col)
 
     def __bool__(self) -> bool:
-        if self.col:
-            return True
-        else:
-            return False
+        return bool(self.col)
 
     def __contains__(self, __o: object) -> bool:
-        for member in self.col:
-            if self._get(member) == __o:
-                return True
-        return False
+        return any(self._get(member) == __o for member in self.col)
 
     def __iter__(self) -> Iterator[_T]:
         """Iterate over proxied values.
@@ -1860,11 +1814,8 @@ class _AssociationSet(_AssociationSingleItem[_T], MutableSet[_T]):
         remover = self.remove
 
         for member in values or ():
-            if member in additions:
+            if member in additions or member in constants:
                 appender(member)
-            elif member in constants:
-                appender(member)
-
         for member in removals:
             remover(member)
 
@@ -1992,7 +1943,7 @@ class _AssociationSet(_AssociationSingleItem[_T], MutableSet[_T]):
         return repr(set(self))
 
     def __hash__(self) -> NoReturn:
-        raise TypeError("%s objects are unhashable" % type(self).__name__)
+        raise TypeError(f"{type(self).__name__} objects are unhashable")
 
     if not typing.TYPE_CHECKING:
         for func_name, func in list(locals().items()):

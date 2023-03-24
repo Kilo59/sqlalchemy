@@ -2,6 +2,7 @@
 bootstrap fixture data if necessary.
 
 """
+
 from hashlib import md5
 import os
 
@@ -37,7 +38,7 @@ if not os.path.exists(root):
     os.makedirs(root)
 
 dbfile = os.path.join(root, "dogpile_demo.db")
-engine = create_engine("sqlite:///%s" % dbfile, echo=True)
+engine = create_engine(f"sqlite:///{dbfile}", echo=True)
 Session.configure(bind=engine)
 
 

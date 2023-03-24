@@ -4,6 +4,7 @@ where a different "schema_translates_map" can be used for each shard.
 In this example we will set a "shard id" at all times.
 
 """
+
 from __future__ import annotations
 
 import datetime
@@ -29,11 +30,9 @@ engine = create_engine("sqlite://", echo=echo)
 with engine.connect() as conn:
     # use attached databases on sqlite to get "schemas"
     for i in range(1, 5):
-        if os.path.exists("schema_%s.db" % i):
-            os.remove("schema_%s.db" % i)
-        conn.exec_driver_sql(
-            'ATTACH DATABASE "schema_%s.db" AS schema_%s' % (i, i)
-        )
+        if os.path.exists(f"schema_{i}.db"):
+            os.remove(f"schema_{i}.db")
+        conn.exec_driver_sql(f'ATTACH DATABASE "schema_{i}.db" AS schema_{i}')
 
 db1 = engine.execution_options(schema_translate_map={None: "schema_1"})
 db2 = engine.execution_options(schema_translate_map={None: "schema_2"})
@@ -54,7 +53,6 @@ Session = sessionmaker(
 )
 
 
-# mappings and tables
 class Base(DeclarativeBase):
     pass
 

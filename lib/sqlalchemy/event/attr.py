@@ -568,14 +568,12 @@ class _ListenerCollection(_CompoundListener[_ET]):
         registry._stored_in_collection_multi(self, other, to_associate)
 
     def insert(self, event_key: _EventKey[_ET], propagate: bool) -> None:
-        if event_key.prepend_to_list(self, self.listeners):
-            if propagate:
-                self.propagate.add(event_key._listen_fn)
+        if event_key.prepend_to_list(self, self.listeners) and propagate:
+            self.propagate.add(event_key._listen_fn)
 
     def append(self, event_key: _EventKey[_ET], propagate: bool) -> None:
-        if event_key.append_to_list(self, self.listeners):
-            if propagate:
-                self.propagate.add(event_key._listen_fn)
+        if event_key.append_to_list(self, self.listeners) and propagate:
+            self.propagate.add(event_key._listen_fn)
 
     def remove(self, event_key: _EventKey[_ET]) -> None:
         self.listeners.remove(event_key._listen_fn)

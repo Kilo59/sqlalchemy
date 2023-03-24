@@ -26,7 +26,7 @@ dictionary_meta = MetaData()
 # using the full table@dblink for every column in query, and complains with
 # ORA-00960: ambiguous column naming in select list
 all_tables = Table(
-    "all_tables" + DB_LINK_PLACEHOLDER,
+    f"all_tables{DB_LINK_PLACEHOLDER}",
     dictionary_meta,
     Column("owner", VARCHAR2(128), nullable=False),
     Column("table_name", VARCHAR2(128), nullable=False),
@@ -117,7 +117,7 @@ all_tables = Table(
 ).alias("a_tables")
 
 all_views = Table(
-    "all_views" + DB_LINK_PLACEHOLDER,
+    f"all_views{DB_LINK_PLACEHOLDER}",
     dictionary_meta,
     Column("owner", VARCHAR2(128), nullable=False),
     Column("view_name", VARCHAR2(128), nullable=False),
@@ -147,7 +147,7 @@ all_views = Table(
 ).alias("a_views")
 
 all_sequences = Table(
-    "all_sequences" + DB_LINK_PLACEHOLDER,
+    f"all_sequences{DB_LINK_PLACEHOLDER}",
     dictionary_meta,
     Column("sequence_owner", VARCHAR2(128), nullable=False),
     Column("sequence_name", VARCHAR2(128), nullable=False),
@@ -166,7 +166,7 @@ all_sequences = Table(
 ).alias("a_sequences")
 
 all_users = Table(
-    "all_users" + DB_LINK_PLACEHOLDER,
+    f"all_users{DB_LINK_PLACEHOLDER}",
     dictionary_meta,
     Column("username", VARCHAR2(128), nullable=False),
     Column("user_id", NUMBER, nullable=False),
@@ -181,7 +181,7 @@ all_users = Table(
 ).alias("a_users")
 
 all_mviews = Table(
-    "all_mviews" + DB_LINK_PLACEHOLDER,
+    f"all_mviews{DB_LINK_PLACEHOLDER}",
     dictionary_meta,
     Column("owner", VARCHAR2(128), nullable=False),
     Column("mview_name", VARCHAR2(128), nullable=False),
@@ -225,7 +225,7 @@ all_mviews = Table(
 ).alias("a_mviews")
 
 all_tab_identity_cols = Table(
-    "all_tab_identity_cols" + DB_LINK_PLACEHOLDER,
+    f"all_tab_identity_cols{DB_LINK_PLACEHOLDER}",
     dictionary_meta,
     Column("owner", VARCHAR2(128), nullable=False),
     Column("table_name", VARCHAR2(128), nullable=False),
@@ -236,7 +236,7 @@ all_tab_identity_cols = Table(
 ).alias("a_tab_identity_cols")
 
 all_tab_cols = Table(
-    "all_tab_cols" + DB_LINK_PLACEHOLDER,
+    f"all_tab_cols{DB_LINK_PLACEHOLDER}",
     dictionary_meta,
     Column("owner", VARCHAR2(128), nullable=False),
     Column("table_name", VARCHAR2(128), nullable=False),
@@ -285,7 +285,7 @@ all_tab_cols = Table(
 ).alias("a_tab_cols")
 
 all_tab_comments = Table(
-    "all_tab_comments" + DB_LINK_PLACEHOLDER,
+    f"all_tab_comments{DB_LINK_PLACEHOLDER}",
     dictionary_meta,
     Column("owner", VARCHAR2(128), nullable=False),
     Column("table_name", VARCHAR2(128), nullable=False),
@@ -295,7 +295,7 @@ all_tab_comments = Table(
 ).alias("a_tab_comments")
 
 all_col_comments = Table(
-    "all_col_comments" + DB_LINK_PLACEHOLDER,
+    f"all_col_comments{DB_LINK_PLACEHOLDER}",
     dictionary_meta,
     Column("owner", VARCHAR2(128), nullable=False),
     Column("table_name", VARCHAR2(128), nullable=False),
@@ -305,7 +305,7 @@ all_col_comments = Table(
 ).alias("a_col_comments")
 
 all_mview_comments = Table(
-    "all_mview_comments" + DB_LINK_PLACEHOLDER,
+    f"all_mview_comments{DB_LINK_PLACEHOLDER}",
     dictionary_meta,
     Column("owner", VARCHAR2(128), nullable=False),
     Column("mview_name", VARCHAR2(128), nullable=False),
@@ -313,7 +313,7 @@ all_mview_comments = Table(
 ).alias("a_mview_comments")
 
 all_ind_columns = Table(
-    "all_ind_columns" + DB_LINK_PLACEHOLDER,
+    f"all_ind_columns{DB_LINK_PLACEHOLDER}",
     dictionary_meta,
     Column("index_owner", VARCHAR2(128), nullable=False),
     Column("index_name", VARCHAR2(128), nullable=False),
@@ -328,7 +328,7 @@ all_ind_columns = Table(
 ).alias("a_ind_columns")
 
 all_indexes = Table(
-    "all_indexes" + DB_LINK_PLACEHOLDER,
+    f"all_indexes{DB_LINK_PLACEHOLDER}",
     dictionary_meta,
     Column("owner", VARCHAR2(128), nullable=False),
     Column("index_name", VARCHAR2(128), nullable=False),
@@ -394,7 +394,7 @@ all_indexes = Table(
 ).alias("a_indexes")
 
 all_constraints = Table(
-    "all_constraints" + DB_LINK_PLACEHOLDER,
+    f"all_constraints{DB_LINK_PLACEHOLDER}",
     dictionary_meta,
     Column("owner", VARCHAR2(128)),
     Column("constraint_name", VARCHAR2(128)),
@@ -421,7 +421,7 @@ all_constraints = Table(
 ).alias("a_constraints")
 
 all_cons_columns = Table(
-    "all_cons_columns" + DB_LINK_PLACEHOLDER,
+    f"all_cons_columns{DB_LINK_PLACEHOLDER}",
     dictionary_meta,
     Column("owner", VARCHAR2(128), nullable=False),
     Column("constraint_name", VARCHAR2(128), nullable=False),
@@ -439,7 +439,7 @@ all_cons_columns = Table(
 # will need to hear from more users if we are doing
 # the right thing here.  See [ticket:2619]
 all_db_links = Table(
-    "all_db_links" + DB_LINK_PLACEHOLDER,
+    f"all_db_links{DB_LINK_PLACEHOLDER}",
     dictionary_meta,
     Column("owner", VARCHAR2(128), nullable=False),
     Column("db_link", VARCHAR2(128), nullable=False),
@@ -453,7 +453,7 @@ all_db_links = Table(
 ).alias("a_db_links")
 
 all_synonyms = Table(
-    "all_synonyms" + DB_LINK_PLACEHOLDER,
+    f"all_synonyms{DB_LINK_PLACEHOLDER}",
     dictionary_meta,
     Column("owner", VARCHAR2(128)),
     Column("synonym_name", VARCHAR2(128)),
@@ -464,7 +464,7 @@ all_synonyms = Table(
 ).alias("a_synonyms")
 
 all_objects = Table(
-    "all_objects" + DB_LINK_PLACEHOLDER,
+    f"all_objects{DB_LINK_PLACEHOLDER}",
     dictionary_meta,
     Column("owner", VARCHAR2(128), nullable=False),
     Column("object_name", VARCHAR2(128), nullable=False),

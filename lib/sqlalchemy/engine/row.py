@@ -162,14 +162,12 @@ class Row(BaseRow, Sequence[Any], Generic[_TP]):
             def go(self: Row) -> Any:
                 if self._parent._has_key(name):
                     return self.__getattr__(name)
-                else:
+                def meth(*arg: Any, **kw: Any) -> Any:
+                    return getattr(collections_abc.Sequence, name)(
+                        self, *arg, **kw
+                    )
 
-                    def meth(*arg: Any, **kw: Any) -> Any:
-                        return getattr(collections_abc.Sequence, name)(
-                            self, *arg, **kw
-                        )
-
-                    return meth
+                return meth
 
             return go
 
@@ -243,7 +241,7 @@ class Row(BaseRow, Sequence[Any], Generic[_TP]):
             :attr:`.Row._mapping`
 
         """
-        return tuple([k for k in self._parent.keys if k is not None])
+        return tuple(k for k in self._parent.keys if k is not None)
 
     def _asdict(self) -> Dict[str, Any]:
         """Return a new dict which maps field names to their corresponding

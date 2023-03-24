@@ -94,9 +94,9 @@ class ConfigData(Base):
     are never deleted or changed.
     """
 
-    def _new_value(name, value):
+    def _new_value(self, value):
         """Create a new entry for usage in the 'elements' dictionary."""
-        return ConfigValueAssociation(ConfigValue(name, value))
+        return ConfigValueAssociation(ConfigValue(self, value))
 
     data = association_proxy("elements", "value", creator=_new_value)
     """Proxy to the 'value' elements of each related ConfigValue,
@@ -235,8 +235,7 @@ class ConfigValue(Base):
             v = getattr(self, k)
             if v is not None:
                 return v
-        else:
-            return None
+        return None
 
     @value.setter
     def value(self, value):

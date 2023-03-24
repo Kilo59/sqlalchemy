@@ -203,7 +203,7 @@ class CursorResultMetaData(ResultMetaData):
             tuplefilter=None,
             translated_indexes=None,
             keymap={
-                key: value[0:5] + (None,) + value[6:]
+                key: value[:5] + (None,) + value[6:]
                 for key, value in self._keymap.items()
             },
             keys=self._keys,
@@ -443,12 +443,9 @@ class CursorResultMetaData(ResultMetaData):
 
                 # then for the dupe keys, put the "ambiguous column"
                 # record into by_key.
-                by_key.update(
-                    {
-                        key: (None, None, [], key, key, None, None)
-                        for key in dupes
-                    }
-                )
+                by_key |= {
+                    key: (None, None, [], key, key, None, None) for key in dupes
+                }
 
             else:
 
@@ -464,7 +461,7 @@ class CursorResultMetaData(ResultMetaData):
                 }
             # update keymap with primary string names taking
             # precedence
-            self._keymap.update(by_key)
+            self._keymap |= by_key
         else:
             # no compiled objects to map, just create keymap by primary string
             self._keymap = {
@@ -481,15 +478,13 @@ class CursorResultMetaData(ResultMetaData):
         # to use names in cursor.description in some cases we need to have
         # some hook to accomplish this.
         if not num_ctx_cols and context._translate_colname:
-            self._keymap.update(
-                {
-                    metadata_entry[MD_UNTRANSLATED]: self._keymap[
-                        metadata_entry[MD_LOOKUP_KEY]
-                    ]
-                    for metadata_entry in raw
-                    if metadata_entry[MD_UNTRANSLATED]
-                }
-            )
+            self._keymap |= {
+                metadata_entry[MD_UNTRANSLATED]: self._keymap[
+                    metadata_entry[MD_LOOKUP_KEY]
+                ]
+                for metadata_entry in raw
+                if metadata_entry[MD_UNTRANSLATED]
+            }
 
     def _merge_cursor_description(
         self,
@@ -837,8 +832,7 @@ class CursorResultMetaData(ResultMetaData):
                 ) from err
             else:
                 raise exc.NoSuchColumnError(
-                    "Could not locate column in row for column '%s'"
-                    % util.string_or_unprintable(key)
+                    f"Could not locate column in row for column '{util.string_or_unprintable(key)}'"
                 ) from err
         else:
             return None
@@ -1132,11 +1126,7 @@ class CursorFetchStrategy(ResultFetchStrategy):
         size: Optional[int] = None,
     ) -> Any:
         try:
-            if size is None:
-                l = dbapi_cursor.fetchmany()
-            else:
-                l = dbapi_cursor.fetchmany(size)
-
+            l = dbapi_cursor.fetchmany() if size is None else dbapi_cursor.fetchmany(size)
             if not l:
                 result._soft_close()
             return l
@@ -1251,12 +1241,12 @@ class BufferedRowCursorFetchStrategy(CursorFetchStrategy):
     def fetchone(self, result, dbapi_cursor, hard_close=False):
         if not self._rowbuffer:
             self._buffer_rows(result, dbapi_cursor)
-            if not self._rowbuffer:
-                try:
-                    result._soft_close(hard=hard_close)
-                except BaseException as e:
-                    self.handle_exception(result, dbapi_cursor, e)
-                return None
+        if not self._rowbuffer:
+            try:
+                result._soft_close(hard=hard_close)
+            except BaseException as e:
+                self.handle_exception(result, dbapi_cursor, e)
+            return None
         return self._rowbuffer.popleft()
 
     def fetchmany(self, result, dbapi_cursor, size=None):
@@ -1276,7 +1266,7 @@ class BufferedRowCursorFetchStrategy(CursorFetchStrategy):
                 else:
                     buf.extend(new)
 
-        result = buf[0:size]
+        result = buf[:size]
         self._rowbuffer = collections.deque(buf[size:])
         return result
 
@@ -1324,16 +1314,15 @@ class FullyBufferedCursorFetchStrategy(CursorFetchStrategy):
     def fetchone(self, result, dbapi_cursor, hard_close=False):
         if self._rowbuffer:
             return self._rowbuffer.popleft()
-        else:
-            result._soft_close(hard=hard_close)
-            return None
+        result._soft_close(hard=hard_close)
+        return None
 
     def fetchmany(self, result, dbapi_cursor, size=None):
         if size is None:
             return self.fetchall(result, dbapi_cursor)
 
         buf = list(self._rowbuffer)
-        rows = buf[0:size]
+        rows = buf[:size]
         self._rowbuffer = collections.deque(buf[size:])
         if not rows:
             result._soft_close()
@@ -1670,11 +1659,7 @@ class CursorResult(Result[_T]):
                 "use .inserted_primary_key_rows."
             )
 
-        ikp = self.inserted_primary_key_rows
-        if ikp:
-            return ikp[0]
-        else:
-            return None
+        return ikp[0] if (ikp := self.inserted_primary_key_rows) else None
 
     def last_updated_params(self):
         """Return the collection of updated parameters from this
@@ -1892,11 +1877,7 @@ class CursorResult(Result[_T]):
                 "is supported, please use .returned_defaults_rows."
             )
 
-        rows = self.context.returned_default_rows
-        if rows:
-            return rows[0]
-        else:
-            return None
+        return rows[0] if (rows := self.context.returned_default_rows) else None
 
     def lastrow_has_defaults(self):
         """Return ``lastrow_has_defaults()`` from the underlying

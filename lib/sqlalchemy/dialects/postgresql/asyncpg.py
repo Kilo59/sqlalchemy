@@ -267,16 +267,15 @@ class AsyncpgNumeric(sqltypes.Numeric):
                 raise exc.InvalidRequestError(
                     "Unknown PG numeric type: %d" % coltype
                 )
+        elif coltype in _FLOAT_TYPES:
+            # pg8000 returns float natively for 701
+            return None
+        elif coltype in _DECIMAL_TYPES or coltype in _INT_TYPES:
+            return processors.to_float
         else:
-            if coltype in _FLOAT_TYPES:
-                # pg8000 returns float natively for 701
-                return None
-            elif coltype in _DECIMAL_TYPES or coltype in _INT_TYPES:
-                return processors.to_float
-            else:
-                raise exc.InvalidRequestError(
-                    "Unknown PG numeric type: %d" % coltype
-                )
+            raise exc.InvalidRequestError(
+                "Unknown PG numeric type: %d" % coltype
+            )
 
 
 class AsyncpgFloat(AsyncpgNumeric):
@@ -482,11 +481,10 @@ class AsyncAdapt_asyncpg_cursor:
                     self._rows = await prepared_stmt.fetch(*parameters)
                     status = prepared_stmt.get_statusmsg()
 
-                    reg = re.match(
+                    if reg := re.match(
                         r"(?:SELECT|UPDATE|DELETE|INSERT \d+) (\d+)", status
-                    )
-                    if reg:
-                        self.rowcount = int(reg.group(1))
+                    ):
+                        self.rowcount = int(reg[1])
                     else:
                         self.rowcount = -1
 
@@ -529,16 +527,13 @@ class AsyncAdapt_asyncpg_cursor:
             yield self._rows.pop(0)
 
     def fetchone(self):
-        if self._rows:
-            return self._rows.pop(0)
-        else:
-            return None
+        return self._rows.pop(0) if self._rows else None
 
     def fetchmany(self, size=None):
         if size is None:
             size = self.arraysize
 
-        retval = self._rows[0:size]
+        retval = self._rows[:size]
         self._rows[:] = self._rows[size:]
         return retval
 
@@ -583,9 +578,7 @@ class AsyncAdapt_asyncpg_ss_cursor(AsyncAdapt_asyncpg_cursor):
     def fetchone(self):
         if not self._rowbuffer:
             self._buffer_rows()
-            if not self._rowbuffer:
-                return None
-        return self._rowbuffer.popleft()
+        return self._rowbuffer.popleft() if self._rowbuffer else None
 
     def fetchmany(self, size=None):
         if size is None:
@@ -601,7 +594,7 @@ class AsyncAdapt_asyncpg_ss_cursor(AsyncAdapt_asyncpg_cursor):
                 self._adapt_connection.await_(self._cursor.fetch(size - lb))
             )
 
-        result = buf[0:size]
+        result = buf[:size]
         self._rowbuffer = collections.deque(buf[size:])
         return result
 
@@ -708,17 +701,12 @@ class AsyncAdapt_asyncpg_connection(AdaptedConnection):
 
             for super_ in type(error).__mro__:
                 if super_ in exception_mapping:
-                    translated_error = exception_mapping[super_](
-                        "%s: %s" % (type(error), error)
-                    )
+                    translated_error = exception_mapping[super_](f"{type(error)}: {error}")
                     translated_error.pgcode = (
                         translated_error.sqlstate
                     ) = getattr(error, "sqlstate", None)
                     raise translated_error from error
-            else:
-                raise error
-        else:
-            raise error
+        raise error
 
     @property
     def autocommit(self):
@@ -726,10 +714,7 @@ class AsyncAdapt_asyncpg_connection(AdaptedConnection):
 
     @autocommit.setter
     def autocommit(self, value):
-        if value:
-            self.isolation_level = "autocommit"
-        else:
-            self.isolation_level = self._isolation_setting
+        self.isolation_level = "autocommit" if value else self._isolation_setting
 
     def ping(self):
         try:
@@ -939,12 +924,8 @@ class PGDialect_asyncpg(PGDialect):
     def _dbapi_version(self):
         if self.dbapi and hasattr(self.dbapi, "__version__"):
             return tuple(
-                [
-                    int(x)
-                    for x in re.findall(
-                        r"(\d+)(?:[-\.]?|$)", self.dbapi.__version__
-                    )
-                ]
+                int(x)
+                for x in re.findall(r"(\d+)(?:[-\.]?|$)", self.dbapi.__version__)
             )
         else:
             return (99, 99, 99)

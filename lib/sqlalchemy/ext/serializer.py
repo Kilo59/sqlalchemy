@@ -88,7 +88,7 @@ def Serializer(*args, **kw):
     def persistent_id(obj):
         # print "serializing:", repr(obj)
         if isinstance(obj, Mapper) and not obj.non_primary:
-            id_ = "mapper:" + b64encode(pickle.dumps(obj.class_))
+            id_ = f"mapper:{b64encode(pickle.dumps(obj.class_))}"
         elif isinstance(obj, MapperProperty) and not obj.parent.non_primary:
             id_ = (
                 "mapperprop:"
@@ -140,33 +140,32 @@ def Deserializer(file, metadata=None, scoped_session=None, engine=None):
         m = our_ids.match(str(id_))
         if not m:
             return None
+        type_, args = m.group(1, 2)
+        if type_ == "attribute":
+            key, clsarg = args.split(":")
+            cls = pickle.loads(b64decode(clsarg))
+            return getattr(cls, key)
+        elif type_ == "mapper":
+            cls = pickle.loads(b64decode(args))
+            return class_mapper(cls)
+        elif type_ == "mapper_selectable":
+            cls = pickle.loads(b64decode(args))
+            return class_mapper(cls).__clause_element__()
+        elif type_ == "mapperprop":
+            mapper, keyname = args.split(":")
+            cls = pickle.loads(b64decode(mapper))
+            return class_mapper(cls).attrs[keyname]
+        elif type_ == "table":
+            return metadata.tables[args]
+        elif type_ == "column":
+            table, colname = args.split(":")
+            return metadata.tables[table].c[colname]
+        elif type_ == "session":
+            return scoped_session()
+        elif type_ == "engine":
+            return get_engine()
         else:
-            type_, args = m.group(1, 2)
-            if type_ == "attribute":
-                key, clsarg = args.split(":")
-                cls = pickle.loads(b64decode(clsarg))
-                return getattr(cls, key)
-            elif type_ == "mapper":
-                cls = pickle.loads(b64decode(args))
-                return class_mapper(cls)
-            elif type_ == "mapper_selectable":
-                cls = pickle.loads(b64decode(args))
-                return class_mapper(cls).__clause_element__()
-            elif type_ == "mapperprop":
-                mapper, keyname = args.split(":")
-                cls = pickle.loads(b64decode(mapper))
-                return class_mapper(cls).attrs[keyname]
-            elif type_ == "table":
-                return metadata.tables[args]
-            elif type_ == "column":
-                table, colname = args.split(":")
-                return metadata.tables[table].c[colname]
-            elif type_ == "session":
-                return scoped_session()
-            elif type_ == "engine":
-                return get_engine()
-            else:
-                raise Exception("Unknown token: %s" % type_)
+            raise Exception(f"Unknown token: {type_}")
 
     unpickler.persistent_load = persistent_load
     return unpickler

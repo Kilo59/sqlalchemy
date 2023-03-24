@@ -106,7 +106,7 @@ def async_engine_from_config(
         if key.startswith(prefix)
     }
     options["_coerce_config"] = True
-    options.update(kwargs)
+    options |= kwargs
     url = options.pop("url")
     return create_async_engine(url, **options)
 

@@ -224,10 +224,7 @@ def has_base_type_id(info: TypeInfo, type_id: int) -> bool:
     else:
         return False
 
-    if fullnames is None:
-        return False
-
-    return mr.fullname in fullnames
+    return False if fullnames is None else mr.fullname in fullnames
 
 
 def mro_has_id(mro: List[TypeInfo], type_id: int) -> bool:
@@ -238,10 +235,7 @@ def mro_has_id(mro: List[TypeInfo], type_id: int) -> bool:
     else:
         return False
 
-    if fullnames is None:
-        return False
-
-    return mr.fullname in fullnames
+    return False if fullnames is None else mr.fullname in fullnames
 
 
 def type_id_for_unbound_type(
@@ -295,12 +289,10 @@ def type_id_for_named_node(
 ) -> Optional[int]:
     type_id, fullnames = _lookup.get(node.name, (None, None))
 
-    if type_id is None or fullnames is None:
+    if type_id is None or fullnames is None or node.fullname not in fullnames:
         return None
-    elif node.fullname in fullnames:
-        return type_id
     else:
-        return None
+        return type_id
 
 
 def type_id_for_fullname(fullname: str) -> Optional[int]:
@@ -309,12 +301,10 @@ def type_id_for_fullname(fullname: str) -> Optional[int]:
 
     type_id, fullnames = _lookup.get(immediate, (None, None))
 
-    if type_id is None or fullnames is None:
+    if type_id is None or fullnames is None or fullname not in fullnames:
         return None
-    elif fullname in fullnames:
-        return type_id
     else:
-        return None
+        return type_id
 
 
 def expr_to_mapped_constructor(expr: Expression) -> CallExpr:

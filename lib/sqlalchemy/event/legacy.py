@@ -65,7 +65,7 @@ def _wrap_fn_for_legacy(
     for since, argnames, conv in dispatch_collection.legacy_signatures:
         if argnames[-1] == "**kw":
             has_kw = True
-            argnames = argnames[0:-1]
+            argnames = argnames[:-1]
         else:
             has_kw = False
 
@@ -73,11 +73,7 @@ def _wrap_fn_for_legacy(
             argspec.varkw
         ):
 
-            formatted_def = "def %s(%s%s)" % (
-                dispatch_collection.name,
-                ", ".join(dispatch_collection.arg_names),
-                ", **kw" if has_kw else "",
-            )
+            formatted_def = f'def {dispatch_collection.name}({", ".join(dispatch_collection.arg_names)}{", **kw" if has_kw else ""})'
             warning_txt = (
                 'The argument signature for the "%s.%s" event listener '
                 "has changed as of version %s, and conversion for "
@@ -105,10 +101,7 @@ def _wrap_fn_for_legacy(
                     util.warn_deprecated(warning_txt, version=since)
                     argdict = dict(zip(dispatch_collection.arg_names, args))
                     args_from_dict = [argdict[name] for name in argnames]
-                    if has_kw:
-                        return fn(*args_from_dict, **kw)
-                    else:
-                        return fn(*args_from_dict)
+                    return fn(*args_from_dict, **kw) if has_kw else fn(*args_from_dict)
 
             return wrap_leg
     else:
@@ -127,7 +120,7 @@ def _standard_listen_example(
     example_kw_arg = _indent(
         "\n".join(
             "%(arg)s = kw['%(arg)s']" % {"arg": arg}
-            for arg in dispatch_collection.arg_names[0:2]
+            for arg in dispatch_collection.arg_names[:2]
         ),
         "    ",
     )
@@ -148,7 +141,7 @@ def _standard_listen_example(
     )
 
     text %= {
-        "current_since": " (arguments as of %s)" % current_since
+        "current_since": f" (arguments as of {current_since})"
         if current_since
         else "",
         "event_name": fn.__name__,
@@ -165,9 +158,8 @@ def _legacy_listen_examples(
     sample_target: str,
     fn: _ListenerFnType,
 ) -> str:
-    text = ""
-    for since, args, conv in dispatch_collection.legacy_signatures:
-        text += (
+    return "".join(
+        (
             "\n# DEPRECATED calling style (pre-%(since)s, "
             "will be removed in a future release)\n"
             "@event.listens_for(%(sample_target)s, '%(event_name)s')\n"
@@ -185,7 +177,8 @@ def _legacy_listen_examples(
                 "sample_target": sample_target,
             }
         )
-    return text
+        for since, args, conv in dispatch_collection.legacy_signatures
+    )
 
 
 def _version_signature_changes(

@@ -134,11 +134,11 @@ class SQLiteDialect_pysqlcipher(SQLiteDialect_pysqlite):
 
         def on_connect(conn):
             cursor = conn.cursor()
-            cursor.execute('pragma key="%s"' % passphrase)
+            cursor.execute(f'pragma key="{passphrase}"')
             for prag in self.pragmas:
-                value = url_query.get(prag, None)
+                value = url_query.get(prag)
                 if value is not None:
-                    cursor.execute('pragma %s="%s"' % (prag, value))
+                    cursor.execute(f'pragma {prag}="{value}"')
             cursor.close()
 
             if super_on_connect:

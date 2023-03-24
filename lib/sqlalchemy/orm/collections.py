@@ -633,18 +633,17 @@ class CollectionAdapter:
         .. versionadded:: 1.4.15
 
         """
-        if initiator is not False:
-            if self.invalidated:
-                self._warn_invalidated()
-
-            if self.empty:
-                self._reset_empty()
-
-            return self.attr.fire_append_wo_mutation_event(
-                self.owner_state, self.owner_state.dict, item, initiator, key
-            )
-        else:
+        if initiator is False:
             return item
+        if self.invalidated:
+            self._warn_invalidated()
+
+        if self.empty:
+            self._reset_empty()
+
+        return self.attr.fire_append_wo_mutation_event(
+            self.owner_state, self.owner_state.dict, item, initiator, key
+        )
 
     def fire_append_event(self, item, initiator=None, key=NO_KEY):
         """Notify that a entity has entered the collection.
@@ -655,18 +654,17 @@ class CollectionAdapter:
         operation.
 
         """
-        if initiator is not False:
-            if self.invalidated:
-                self._warn_invalidated()
-
-            if self.empty:
-                self._reset_empty()
-
-            return self.attr.fire_append_event(
-                self.owner_state, self.owner_state.dict, item, initiator, key
-            )
-        else:
+        if initiator is False:
             return item
+        if self.invalidated:
+            self._warn_invalidated()
+
+        if self.empty:
+            self._reset_empty()
+
+        return self.attr.fire_append_event(
+            self.owner_state, self.owner_state.dict, item, initiator, key
+        )
 
     def fire_remove_event(self, item, initiator=None, key=NO_KEY):
         """Notify that a entity has been removed from the collection.
@@ -954,7 +952,7 @@ def _set_collection_attributes(cls, roles, methods):
         )
     # intern the role map
     for role, method_name in roles.items():
-        setattr(cls, "_sa_%s" % role, getattr(cls, method_name))
+        setattr(cls, f"_sa_{role}", getattr(cls, method_name))
 
     cls._sa_adapter = None
 
@@ -975,10 +973,7 @@ def _instrument_membership_mutator(method, before, argument, after):
             pos_arg = argument
             named_arg = len(fn_args) > argument and fn_args[argument] or None
         else:
-            if argument in fn_args:
-                pos_arg = fn_args.index(argument)
-            else:
-                pos_arg = None
+            pos_arg = fn_args.index(argument) if argument in fn_args else None
             named_arg = argument
         del fn_args
 
@@ -986,9 +981,7 @@ def _instrument_membership_mutator(method, before, argument, after):
         if before:
             if pos_arg is None:
                 if named_arg not in kw:
-                    raise sa_exc.ArgumentError(
-                        "Missing argument %s" % argument
-                    )
+                    raise sa_exc.ArgumentError(f"Missing argument {argument}")
                 value = kw[named_arg]
             else:
                 if len(args) > pos_arg:
@@ -996,26 +989,19 @@ def _instrument_membership_mutator(method, before, argument, after):
                 elif named_arg in kw:
                     value = kw[named_arg]
                 else:
-                    raise sa_exc.ArgumentError(
-                        "Missing argument %s" % argument
-                    )
+                    raise sa_exc.ArgumentError(f"Missing argument {argument}")
 
         initiator = kw.pop("_sa_initiator", None)
-        if initiator is False:
-            executor = None
-        else:
-            executor = args[0]._sa_adapter
-
+        executor = None if initiator is False else args[0]._sa_adapter
         if before and executor:
             getattr(executor, before)(value, initiator)
 
         if not after or not executor:
             return method(*args, **kw)
-        else:
-            res = method(*args, **kw)
-            if res is not None:
-                getattr(executor, after)(res, initiator)
-            return res
+        res = method(*args, **kw)
+        if res is not None:
+            getattr(executor, after)(res, initiator)
+        return res
 
     wrapper._sa_instrumented = True  # type: ignore[attr-defined]
     if hasattr(method, "_sa_instrument_role"):
@@ -1032,8 +1018,7 @@ def __set_wo_mutation(collection, item, _sa_initiator=None):
 
     """
     if _sa_initiator is not False:
-        executor = collection._sa_adapter
-        if executor:
+        if executor := collection._sa_adapter:
             executor.fire_append_wo_mutation_event(
                 item, _sa_initiator, key=None
             )
@@ -1047,8 +1032,7 @@ def __set(collection, item, _sa_initiator, key):
     """
 
     if _sa_initiator is not False:
-        executor = collection._sa_adapter
-        if executor:
+        if executor := collection._sa_adapter:
             item = executor.fire_append_event(item, _sa_initiator, key=key)
     return item
 
@@ -1063,15 +1047,13 @@ def __del(collection, item, _sa_initiator, key):
 
     """
     if _sa_initiator is not False:
-        executor = collection._sa_adapter
-        if executor:
+        if executor := collection._sa_adapter:
             executor.fire_remove_event(item, _sa_initiator, key=key)
 
 
 def __before_pop(collection, _sa_initiator=None):
     """An event which occurs on a before a pop() operation occurs."""
-    executor = collection._sa_adapter
-    if executor:
+    if executor := collection._sa_adapter:
         executor.fire_pre_remove_event(_sa_initiator)
 
 
@@ -1121,10 +1103,7 @@ def _list_decorators() -> Dict[str, Callable[[_FN], _FN]]:
                 start = index.start or 0
                 if start < 0:
                     start += len(self)
-                if index.stop is not None:
-                    stop = index.stop
-                else:
-                    stop = len(self)
+                stop = index.stop if index.stop is not None else len(self)
                 if stop < 0:
                     stop += len(self)
 
@@ -1255,10 +1234,7 @@ def _dict_decorators() -> Dict[str, Callable[[_FN], _FN]]:
         def pop(self, key, default=NO_ARG):
             __before_pop(self)
             _to_del = key in self
-            if default is NO_ARG:
-                item = fn(self, key)
-            else:
-                item = fn(self, key, default)
+            item = fn(self, key) if default is NO_ARG else fn(self, key, default)
             if _to_del:
                 __del(self, item, None, key)
             return item

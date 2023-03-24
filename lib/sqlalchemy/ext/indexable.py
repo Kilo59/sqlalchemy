@@ -289,11 +289,10 @@ class index_property(hybrid_property):  # noqa
 
         if datatype is not None:
             self.datatype = datatype
+        elif is_numeric:
+            self.datatype = lambda: [None for _ in range(index + 1)]
         else:
-            if is_numeric:
-                self.datatype = lambda: [None for x in range(index + 1)]
-            else:
-                self.datatype = dict
+            self.datatype = dict
         self.onebased = onebased
 
     def _fget_default(self, err=None):

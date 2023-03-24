@@ -31,9 +31,7 @@ def _pg_create_db(cfg, eng, ident):
         attempt = 0
         while True:
             try:
-                conn.exec_driver_sql(
-                    "CREATE DATABASE %s TEMPLATE %s" % (ident, template_db)
-                )
+                conn.exec_driver_sql(f"CREATE DATABASE {ident} TEMPLATE {template_db}")
             except exc.OperationalError as err:
                 attempt += 1
                 if attempt >= 3:
@@ -65,7 +63,7 @@ def _pg_drop_db(cfg, eng, ident):
                 ),
                 dict(dname=ident),
             )
-            conn.exec_driver_sql("DROP DATABASE %s" % ident)
+            conn.exec_driver_sql(f"DROP DATABASE {ident}")
 
 
 @temp_table_keyword_args.for_db("postgresql")
@@ -80,7 +78,7 @@ def _postgresql_set_default_schema_on_connection(
     existing_autocommit = dbapi_connection.autocommit
     dbapi_connection.autocommit = True
     cursor = dbapi_connection.cursor()
-    cursor.execute("SET SESSION search_path='%s'" % schema_name)
+    cursor.execute(f"SET SESSION search_path='{schema_name}'")
     cursor.close()
     dbapi_connection.autocommit = existing_autocommit
 
@@ -91,7 +89,7 @@ def drop_all_schema_objects_pre_tables(cfg, eng):
         for xid in conn.exec_driver_sql(
             "select gid from pg_prepared_xacts"
         ).scalars():
-            conn.execute("ROLLBACK PREPARED '%s'" % xid)
+            conn.execute(f"ROLLBACK PREPARED '{xid}'")
 
 
 @drop_all_schema_objects_post_tables.for_db("postgresql")
@@ -120,12 +118,9 @@ def prepare_for_drop_tables(config, connection):
         "and datname=current_database() and state='idle in transaction' "
         "and pid != pg_backend_pid()"
     )
-    rows = result.all()  # noqa
-    if rows:
+    if rows := result.all():
         warn_test_suite(
-            "PostgreSQL may not be able to DROP tables due to "
-            "idle in transaction: %s"
-            % ("; ".join(row._mapping["query"] for row in rows))
+            f'PostgreSQL may not be able to DROP tables due to idle in transaction: {"; ".join(row._mapping["query"] for row in rows)}'
         )
 
 

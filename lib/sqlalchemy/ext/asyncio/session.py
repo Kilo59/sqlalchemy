@@ -368,7 +368,7 @@ class AsyncSession(ReversibleProxy[Session]):
         else:
             execution_options = _EXECUTE_OPTIONS
 
-        result = await greenlet_spawn(
+        return await greenlet_spawn(
             self.sync_session.scalar,
             statement,
             params=params,
@@ -376,7 +376,6 @@ class AsyncSession(ReversibleProxy[Session]):
             bind_arguments=bind_arguments,
             **kw,
         )
-        return result
 
     @overload
     async def scalars(
@@ -459,7 +458,7 @@ class AsyncSession(ReversibleProxy[Session]):
 
         """
 
-        result_obj = await greenlet_spawn(
+        return await greenlet_spawn(
             self.sync_session.get,
             entity,
             ident,
@@ -468,7 +467,6 @@ class AsyncSession(ReversibleProxy[Session]):
             with_for_update=with_for_update,
             identity_token=identity_token,
         )
-        return result_obj
 
     @overload
     async def stream(
@@ -847,9 +845,9 @@ class AsyncSession(ReversibleProxy[Session]):
         await greenlet_spawn(self.sync_session.invalidate)
 
     @classmethod
-    async def close_all(self) -> None:
+    async def close_all(cls) -> None:
         """Close all :class:`_asyncio.AsyncSession` sessions."""
-        await greenlet_spawn(self.sync_session.close_all)
+        await greenlet_spawn(cls.sync_session.close_all)
 
     async def __aenter__(self: _AS) -> _AS:
         return self
@@ -1682,10 +1680,7 @@ def async_object_session(instance: object) -> Optional[AsyncSession]:
     """
 
     session = object_session(instance)
-    if session is not None:
-        return async_session(session)
-    else:
-        return None
+    return async_session(session) if session is not None else None
 
 
 def async_session(session: Session) -> Optional[AsyncSession]:

@@ -174,7 +174,7 @@ def set_mapped_attributes(
 
 
 def fail(api: SemanticAnalyzerPluginInterface, msg: str, ctx: Context) -> None:
-    msg = "[SQLAlchemy Mypy plugin] %s" % msg
+    msg = f"[SQLAlchemy Mypy plugin] {msg}"
     return api.fail(msg, ctx)
 
 

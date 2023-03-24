@@ -56,11 +56,10 @@ class MyClass:
     def __getattr__(self, key):
         if is_instrumented(self, key):
             return get_attribute(self, key)
-        else:
-            try:
-                return self._goofy_dict[key]
-            except KeyError:
-                raise AttributeError(key)
+        try:
+            return self._goofy_dict[key]
+        except KeyError:
+            raise AttributeError(key)
 
     def __setattr__(self, key, value):
         if is_instrumented(self, key):

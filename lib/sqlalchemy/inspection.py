@@ -111,13 +111,11 @@ def inspect(subject: Any, raiseerr: bool = True) -> Any:
             ret = reg(subject)
             if ret is not None:
                 return ret
-    else:
-        reg = ret = None
+    reg = ret = None
 
     if raiseerr and (reg is None or ret is None):
         raise exc.NoInspectionAvailable(
-            "No inspection system is "
-            "available for object of type %s" % type_
+            f"No inspection system is available for object of type {type_}"
         )
     return ret
 
@@ -128,9 +126,7 @@ def _inspects(
     def decorate(fn_or_cls: _F) -> _F:
         for type_ in types:
             if type_ in _registrars:
-                raise AssertionError(
-                    "Type %s is already " "registered" % type_
-                )
+                raise AssertionError(f"Type {type_} is already registered")
             _registrars[type_] = fn_or_cls
         return fn_or_cls
 
@@ -142,6 +138,6 @@ _TT = TypeVar("_TT", bound="Type[Any]")
 
 def _self_inspects(cls: _TT) -> _TT:
     if cls in _registrars:
-        raise AssertionError("Type %s is already " "registered" % cls)
+        raise AssertionError(f"Type {cls} is already registered")
     _registrars[cls] = True
     return cls

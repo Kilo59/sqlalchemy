@@ -43,24 +43,20 @@ class _PsycopgNumeric(sqltypes.Numeric):
                 raise exc.InvalidRequestError(
                     "Unknown PG numeric type: %d" % coltype
                 )
+        elif coltype in _FLOAT_TYPES:
+            # psycopg returns float natively for 701
+            return None
+        elif coltype in _DECIMAL_TYPES or coltype in _INT_TYPES:
+            return processors.to_float
         else:
-            if coltype in _FLOAT_TYPES:
-                # psycopg returns float natively for 701
-                return None
-            elif coltype in _DECIMAL_TYPES or coltype in _INT_TYPES:
-                return processors.to_float
-            else:
-                raise exc.InvalidRequestError(
-                    "Unknown PG numeric type: %d" % coltype
-                )
+            raise exc.InvalidRequestError(
+                "Unknown PG numeric type: %d" % coltype
+            )
 
 
 class _PsycopgHStore(HSTORE):
     def bind_processor(self, dialect):
-        if dialect._has_native_hstore:
-            return None
-        else:
-            return super().bind_processor(dialect)
+        return None if dialect._has_native_hstore else super().bind_processor(dialect)
 
     def result_processor(self, dialect, coltype):
         if dialect._has_native_hstore:
@@ -88,7 +84,7 @@ class _PGExecutionContext_common_psycopg(PGExecutionContext):
         # https://www.psycopg.org/psycopg3/docs/advanced/cursors.html#server-side-cursors
         # psycopg2
         # https://www.psycopg.org/docs/usage.html#server-side-cursors
-        ident = "c_%s_%s" % (hex(id(self))[2:], hex(_server_side_id())[2:])
+        ident = f"c_{hex(id(self))[2:]}_{hex(_server_side_id())[2:]}"
         return self._dbapi_connection.cursor(ident)
 
 
@@ -126,36 +122,36 @@ class _PGDialect_common_psycopg(PGDialect):
     def create_connect_args(self, url):
         opts = url.translate_connect_args(username="user", database="dbname")
 
-        is_multihost = False
-        if "host" in url.query:
-            is_multihost = isinstance(url.query["host"], (list, tuple))
-
-        if opts or url.query:
-            if not opts:
-                opts = {}
+        if not opts:
+            if not url.query:
+                # no connection arguments whatsoever; psycopg2.connect()
+                # requires that "dsn" be present as a blank string.
+                return ([""], opts)
+            opts = {}
+        if "port" in opts:
+            opts["port"] = int(opts["port"])
+        opts.update(url.query)
+        is_multihost = (
+            isinstance(url.query["host"], (list, tuple))
+            if "host" in url.query
+            else False
+        )
+        if is_multihost:
+            hosts, ports = zip(
+                *[
+                    token.split(":") if ":" in token else (token, "")
+                    for token in url.query["host"]
+                ]
+            )
+            opts["host"] = ",".join(hosts)
             if "port" in opts:
-                opts["port"] = int(opts["port"])
-            opts.update(url.query)
-            if is_multihost:
-                hosts, ports = zip(
-                    *[
-                        token.split(":") if ":" in token else (token, "")
-                        for token in url.query["host"]
-                    ]
+                raise exc.ArgumentError(
+                    "Can't mix 'multihost' formats together; use "
+                    '"host=h1,h2,h3&port=p1,p2,p3" or '
+                    '"host=h1:p1&host=h2:p2&host=h3:p3" separately'
                 )
-                opts["host"] = ",".join(hosts)
-                if "port" in opts:
-                    raise exc.ArgumentError(
-                        "Can't mix 'multihost' formats together; use "
-                        '"host=h1,h2,h3&port=p1,p2,p3" or '
-                        '"host=h1:p1&host=h2:p2&host=h3:p3" separately'
-                    )
-                opts["port"] = ",".join(ports)
-            return ([], opts)
-        else:
-            # no connection arguments whatsoever; psycopg2.connect()
-            # requires that "dsn" be present as a blank string.
-            return ([""], opts)
+            opts["port"] = ",".join(ports)
+        return ([], opts)
 
     def get_isolation_level_values(self, dbapi_connection):
         return (

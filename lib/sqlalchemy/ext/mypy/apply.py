@@ -217,12 +217,10 @@ def apply_type_to_mapped_statement(
     # trying every combination until it works stuff.
 
     if left_hand_explicit_type is not None:
-        lvalue.is_inferred_def = False
         left_node.type = api.named_type(
             NAMED_TYPE_SQLA_MAPPED, [left_hand_explicit_type]
         )
     else:
-        lvalue.is_inferred_def = False
         left_node.type = api.named_type(
             NAMED_TYPE_SQLA_MAPPED,
             [AnyType(TypeOfAny.special_form)]
@@ -230,6 +228,7 @@ def apply_type_to_mapped_statement(
             else [python_type_for_type],
         )
 
+    lvalue.is_inferred_def = False
     # so to have it skip the right side totally, we can do this:
     # stmt.rvalue = TempNode(AnyType(TypeOfAny.special_form))
 
@@ -307,14 +306,13 @@ def _apply_placeholder_attr_to_class(
     qualified_name: str,
     attrname: str,
 ) -> None:
-    sym = api.lookup_fully_qualified_or_none(qualified_name)
-    if sym:
+    if sym := api.lookup_fully_qualified_or_none(qualified_name):
         assert isinstance(sym.node, TypeInfo)
         type_: ProperType = Instance(sym.node, [])
     else:
         type_ = AnyType(TypeOfAny.special_form)
     var = Var(attrname)
-    var._fullname = cls.fullname + "." + attrname
+    var._fullname = f"{cls.fullname}.{attrname}"
     var.info = cls.info
     var.type = type_
     cls.info.names[attrname] = SymbolTableNode(MDEF, var)

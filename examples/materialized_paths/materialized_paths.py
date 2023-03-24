@@ -98,7 +98,7 @@ class Node(Base):
         return "\n".join(s)
 
     def move_to(self, new_parent):
-        new_path = new_parent.path + "." + str(self.id)
+        new_path = f"{new_parent.path}.{str(self.id)}"
         for n in self.descendants:
             n.path = new_path + n.path[len(self.path) :]
         self.path = new_path
@@ -130,19 +130,19 @@ if __name__ == "__main__":
         ]
     )
     session.flush()
-    print(str(session.query(Node).get(1)))
+    print(session.query(Node).get(1))
 
     print("-" * 80)
     print("move 7 under 3")
     session.query(Node).get(7).move_to(session.query(Node).get(3))
     session.flush()
-    print(str(session.query(Node).get(1)))
+    print(session.query(Node).get(1))
 
     print("-" * 80)
     print("move 3 under 2")
     session.query(Node).get(3).move_to(session.query(Node).get(2))
     session.flush()
-    print(str(session.query(Node).get(1)))
+    print(session.query(Node).get(1))
 
     print("-" * 80)
     print("find the ancestors of 10")

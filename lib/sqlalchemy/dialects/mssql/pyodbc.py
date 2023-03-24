@@ -400,10 +400,7 @@ class _ms_numeric_pyodbc:
                 elif adjusted > 7:
                     return self._large_dec_to_string(value)
 
-            if super_process:
-                return super_process(value)
-            else:
-                return value
+            return super_process(value) if super_process else value
 
         return process
 
@@ -411,33 +408,18 @@ class _ms_numeric_pyodbc:
     # as of 2.1.8 this logic is integrated.
 
     def _small_dec_to_string(self, value):
-        return "%s0.%s%s" % (
-            (value < 0 and "-" or ""),
-            "0" * (abs(value.adjusted()) - 1),
-            "".join([str(nint) for nint in value.as_tuple()[1]]),
-        )
+        return f'{value < 0 and "-" or ""}0.{"0" * (abs(value.adjusted()) - 1)}{"".join([str(nint) for nint in value.as_tuple()[1]])}'
 
     def _large_dec_to_string(self, value):
         _int = value.as_tuple()[1]
         if "E" in str(value):
-            result = "%s%s%s" % (
-                (value < 0 and "-" or ""),
-                "".join([str(s) for s in _int]),
-                "0" * (value.adjusted() - (len(_int) - 1)),
-            )
+            return f'{value < 0 and "-" or ""}{"".join([str(s) for s in _int])}{"0" * (value.adjusted() - (len(_int) - 1))}'
         else:
-            if (len(_int) - 1) > value.adjusted():
-                result = "%s%s.%s" % (
-                    (value < 0 and "-" or ""),
-                    "".join([str(s) for s in _int][0 : value.adjusted() + 1]),
-                    "".join([str(s) for s in _int][value.adjusted() + 1 :]),
-                )
-            else:
-                result = "%s%s" % (
-                    (value < 0 and "-" or ""),
-                    "".join([str(s) for s in _int][0 : value.adjusted() + 1]),
-                )
-        return result
+            return (
+                f'{value < 0 and "-" or ""}{"".join([str(s) for s in _int][:value.adjusted() + 1])}.{"".join([str(s) for s in _int][value.adjusted() + 1:])}'
+                if (len(_int) - 1) > value.adjusted()
+                else f'{value < 0 and "-" or ""}{"".join([str(s) for s in _int][:value.adjusted() + 1])}'
+            )
 
 
 class _MSNumeric_pyodbc(_ms_numeric_pyodbc, sqltypes.Numeric):
@@ -462,11 +444,7 @@ class _ms_binary_pyodbc:
         DBAPIBinary = dialect.dbapi.Binary
 
         def process(value):
-            if value is not None:
-                return DBAPIBinary(value)
-            else:
-                # pyodbc-specific
-                return dialect.dbapi.BinaryNull
+            return DBAPIBinary(value) if value is not None else dialect.dbapi.BinaryNull
 
         return process
 

@@ -32,10 +32,9 @@ def _event_key(
         tgt = evt_cls._accept_with(target, identifier)
         if tgt is not None:
             return _EventKey(target, identifier, fn, tgt)
-    else:
-        raise exc.InvalidRequestError(
-            "No such event '%s' for target '%s'" % (identifier, target)
-        )
+    raise exc.InvalidRequestError(
+        f"No such event '{identifier}' for target '{target}'"
+    )
 
 
 def listen(

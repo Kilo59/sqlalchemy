@@ -215,9 +215,7 @@ class QueryableAttribute(
         self._extra_criteria = extra_criteria
         self._doc = None
 
-        manager = opt_manager_of_class(class_)
-        # manager is None in the case of AliasedClass
-        if manager:
+        if manager := opt_manager_of_class(class_):
             # propagate existing event listeners from
             # immediate superclass
             for base in manager._bases:
@@ -549,12 +547,11 @@ class InstrumentedAttribute(QueryableAttribute[_T]):
         dict_ = instance_dict(instance)
         if self.impl.supports_population and self.key in dict_:
             return dict_[self.key]  # type: ignore[no-any-return]
-        else:
-            try:
-                state = instance_state(instance)
-            except AttributeError as err:
-                raise orm_exc.UnmappedInstanceError(instance) from err
-            return self.impl.get(state, dict_)  # type: ignore[no-any-return]
+        try:
+            state = instance_state(instance)
+        except AttributeError as err:
+            raise orm_exc.UnmappedInstanceError(instance) from err
+        return self.impl.get(state, dict_)  # type: ignore[no-any-return]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -577,6 +574,8 @@ def create_proxied_attribute(
 
     # TODO: can move this to descriptor_props if the need for this
     # function is removed from ext/hybrid.py
+
+
 
     class Proxy(QueryableAttribute[Any]):
         """Presents the :class:`.QueryableAttribute` interface as a
@@ -678,10 +677,7 @@ def create_proxied_attribute(
             # detect if this is a plain Python @property, which just returns
             # itself for class level access.  If so, then return us.
             # Otherwise, return the object returned by the descriptor.
-            if retval is self.descriptor and instance is None:
-                return self
-            else:
-                return retval
+            return self if retval is self.descriptor and instance is None else retval
 
         def __str__(self) -> str:
             return f"{self.class_.__name__}.{self.key}"
@@ -728,7 +724,8 @@ def create_proxied_attribute(
                             )
                         ) from err3
 
-    Proxy.__name__ = type(descriptor).__name__ + "Proxy"
+
+    Proxy.__name__ = f"{type(descriptor).__name__}Proxy"
 
     util.monkeypatch_proxied_specials(
         Proxy, type(descriptor), name="descriptor", from_instance=descriptor
@@ -879,11 +876,7 @@ class AttributeImpl:
         self.trackparent = trackparent
         self.parent_token = parent_token or self
         self.send_modified_events = send_modified_events
-        if compare_function is None:
-            self.is_equal = operator.eq
-        else:
-            self.is_equal = compare_function
-
+        self.is_equal = operator.eq if compare_function is None else compare_function
         if accepts_scalar_loader is not None:
             self.accepts_scalar_loader = accepts_scalar_loader
         else:
@@ -1057,37 +1050,33 @@ class AttributeImpl:
         """
         if self.key in dict_:
             return dict_[self.key]
-        else:
-            # if history present, don't load
-            key = self.key
-            if (
-                key not in state.committed_state
-                or state.committed_state[key] is NO_VALUE
-            ):
-                if not passive & CALLABLES_OK:
-                    return PASSIVE_NO_RESULT
+        # if history present, don't load
+        key = self.key
+        if (
+            key not in state.committed_state
+            or state.committed_state[key] is NO_VALUE
+        ):
+            if not passive & CALLABLES_OK:
+                return PASSIVE_NO_RESULT
 
-                value = self._fire_loader_callables(state, key, passive)
+            value = self._fire_loader_callables(state, key, passive)
 
-                if value is PASSIVE_NO_RESULT or value is NO_VALUE:
-                    return value
-                elif value is ATTR_WAS_SET:
-                    try:
-                        return dict_[key]
-                    except KeyError as err:
-                        # TODO: no test coverage here.
-                        raise KeyError(
-                            "Deferred loader for attribute "
-                            "%r failed to populate "
-                            "correctly" % key
-                        ) from err
-                elif value is not ATTR_EMPTY:
-                    return self.set_committed_value(state, dict_, value)
+            if value is PASSIVE_NO_RESULT or value is NO_VALUE:
+                return value
+            elif value is ATTR_WAS_SET:
+                try:
+                    return dict_[key]
+                except KeyError as err:
+                    # TODO: no test coverage here.
+                    raise KeyError(
+                        "Deferred loader for attribute "
+                        "%r failed to populate "
+                        "correctly" % key
+                    ) from err
+            elif value is not ATTR_EMPTY:
+                return self.set_committed_value(state, dict_, value)
 
-            if not passive & INIT_OK:
-                return NO_VALUE
-            else:
-                return self._default_value(state, dict_)
+        return self._default_value(state, dict_) if passive & INIT_OK else NO_VALUE
 
     def _fire_loader_callables(
         self, state: InstanceState[Any], key: str, passive: PassiveFlag
@@ -1169,14 +1158,10 @@ class AttributeImpl:
     ) -> Any:
         """return the unchanged value of this attribute"""
 
-        if self.key in state.committed_state:
-            value = state.committed_state[self.key]
-            if value is NO_VALUE:
-                return None
-            else:
-                return value
-        else:
+        if self.key not in state.committed_state:
             return self.get(state, dict_, passive=passive)
+        value = state.committed_state[self.key]
+        return None if value is NO_VALUE else value
 
     def set_committed_value(self, state, dict_, value):
         """set an attribute value on the given instance and 'commit' it."""
@@ -1221,7 +1206,7 @@ class ScalarAttributeImpl(AttributeImpl):
             and not state.expired
             and self.key not in state.expired_attributes
         ):
-            raise AttributeError("%s object does not have a value" % self)
+            raise AttributeError(f"{self} object does not have a value")
 
     def get_history(
         self,
@@ -1334,7 +1319,7 @@ class ScalarObjectAttributeImpl(ScalarAttributeImpl):
             and old is not PASSIVE_NO_RESULT
             and state.key is None
         ):
-            raise AttributeError("%s object does not have a value" % self)
+            raise AttributeError(f"{self} object does not have a value")
 
     def get_history(
         self,
@@ -1353,23 +1338,22 @@ class ScalarObjectAttributeImpl(ScalarAttributeImpl):
 
         if not self._deferred_history:
             return History.from_object_attribute(self, state, current)
-        else:
-            original = state.committed_state.get(self.key, _NO_HISTORY)
-            if original is PASSIVE_NO_RESULT:
+        original = state.committed_state.get(self.key, _NO_HISTORY)
+        if original is PASSIVE_NO_RESULT:
 
-                loader_passive = passive | (
-                    PASSIVE_ONLY_PERSISTENT
-                    | NO_AUTOFLUSH
-                    | LOAD_AGAINST_COMMITTED
-                    | NO_RAISE
-                    | DEFERRED_HISTORY_LOAD
-                )
-                original = self._fire_loader_callables(
-                    state, self.key, loader_passive
-                )
-            return History.from_object_attribute(
-                self, state, current, original=original
+            loader_passive = passive | (
+                PASSIVE_ONLY_PERSISTENT
+                | NO_AUTOFLUSH
+                | LOAD_AGAINST_COMMITTED
+                | NO_RAISE
+                | DEFERRED_HISTORY_LOAD
             )
+            original = self._fire_loader_callables(
+                state, self.key, loader_passive
+            )
+        return History.from_object_attribute(
+            self, state, current, original=original
+        )
 
     def get_all_pending(
         self,
@@ -1446,8 +1430,7 @@ class ScalarObjectAttributeImpl(ScalarAttributeImpl):
                 return
             else:
                 raise ValueError(
-                    "Object %s not associated with %s on attribute '%s'"
-                    % (instance_str(check_old), state_str(state), self.key)
+                    f"Object {instance_str(check_old)} not associated with {state_str(state)} on attribute '{self.key}'"
                 )
 
         value = self.fire_replace_event(state, dict_, value, old, initiator)
@@ -1480,13 +1463,17 @@ class ScalarObjectAttributeImpl(ScalarAttributeImpl):
         previous: Any,
         initiator: Optional[AttributeEventToken],
     ) -> _T:
-        if self.trackparent:
-            if previous is not value and previous not in (
+        if (
+            self.trackparent
+            and previous is not value
+            and previous
+            not in (
                 None,
                 PASSIVE_NO_RESULT,
                 NO_VALUE,
-            ):
-                self.sethasparent(instance_state(previous), state, False)
+            )
+        ):
+            self.sethasparent(instance_state(previous), state, False)
 
         for fn in self.dispatch.set:
             value = fn(
@@ -1495,9 +1482,8 @@ class ScalarObjectAttributeImpl(ScalarAttributeImpl):
 
         state._modified_event(dict_, self, previous)
 
-        if self.trackparent:
-            if value is not None:
-                self.sethasparent(instance_state(value), state, True)
+        if self.trackparent and value is not None:
+            self.sethasparent(instance_state(value), state, True)
 
         return value
 
@@ -1658,7 +1644,7 @@ class CollectionAttributeImpl(HasCollectionAdapter, AttributeImpl):
                 collection._sa_linker(None)
 
     def __copy(self, item):
-        return [y for y in collections.collection_adapter(item)]
+        return list(collections.collection_adapter(item))
 
     def get_history(
         self,
@@ -1916,10 +1902,7 @@ class CollectionAttributeImpl(HasCollectionAdapter, AttributeImpl):
                         or iterable.__class__.__name__
                     )
                     wanted = self._duck_typed_as.__name__  # type: ignore
-                    raise TypeError(
-                        "Incompatible collection type: %s is not %s-like"
-                        % (given, wanted)
-                    )
+                    raise TypeError(f"Incompatible collection type: {given} is not {wanted}-like")
 
                 # If the object is an adapted collection, return the (iterable)
                 # adapter.
@@ -2208,53 +2191,51 @@ def backref_listeners(
         return child
 
     def emit_backref_from_collection_remove_event(
-        state, child, initiator, **kw
-    ):
-        if (
-            child is not None
-            and child is not PASSIVE_NO_RESULT
-            and child is not NO_VALUE
+            state, child, initiator, **kw
         ):
-            child_state, child_dict = (
-                instance_state(child),
-                instance_dict(child),
+        if child is None or child is PASSIVE_NO_RESULT or child is NO_VALUE:
+            return
+        child_state, child_dict = (
+            instance_state(child),
+            instance_dict(child),
+        )
+        child_impl = child_state.manager[key].impl
+
+        check_replace_token: Optional[AttributeEventToken]
+
+        # tokens to test for a recursive loop.
+        if not child_impl.collection and not child_impl.dynamic:
+            check_remove_token = child_impl._remove_token
+            check_replace_token = child_impl._replace_token
+            check_for_dupes_on_remove = uselist and not parent_impl.dynamic
+        else:
+            check_remove_token = child_impl._remove_token
+            check_replace_token = (
+                child_impl._bulk_replace_token
+                if _is_collection_attribute_impl(child_impl)
+                else None
             )
-            child_impl = child_state.manager[key].impl
+            check_for_dupes_on_remove = False
 
-            check_replace_token: Optional[AttributeEventToken]
-
-            # tokens to test for a recursive loop.
-            if not child_impl.collection and not child_impl.dynamic:
-                check_remove_token = child_impl._remove_token
-                check_replace_token = child_impl._replace_token
-                check_for_dupes_on_remove = uselist and not parent_impl.dynamic
-            else:
-                check_remove_token = child_impl._remove_token
-                check_replace_token = (
-                    child_impl._bulk_replace_token
-                    if _is_collection_attribute_impl(child_impl)
-                    else None
-                )
-                check_for_dupes_on_remove = False
-
-            if (
-                initiator is not check_remove_token
-                and initiator is not check_replace_token
-            ):
-
-                if not check_for_dupes_on_remove or not util.has_dupes(
-                    # when this event is called, the item is usually
-                    # present in the list, except for a pop() operation.
-                    state.dict[parent_impl.key],
-                    child,
-                ):
-                    child_impl.pop(
-                        child_state,
-                        child_dict,
-                        state.obj(),
-                        initiator,
-                        passive=PASSIVE_NO_FETCH,
-                    )
+        if (
+            initiator is not check_remove_token
+            and initiator is not check_replace_token
+        ) and (
+            not check_for_dupes_on_remove
+            or not util.has_dupes(
+                # when this event is called, the item is usually
+                # present in the list, except for a pop() operation.
+                state.dict[parent_impl.key],
+                child,
+            )
+        ):
+            child_impl.pop(
+                child_state,
+                child_dict,
+                state.obj(),
+                initiator,
+                passive=PASSIVE_NO_FETCH,
+            )
 
     if uselist:
         event.listen(
@@ -2379,11 +2360,7 @@ class History(NamedTuple):
         deleted: Union[Tuple[()], List[Any]]
 
         if original is _NO_HISTORY:
-            if current is NO_VALUE:
-                return cls((), (), ())
-            else:
-                return cls((), [current], ())
-        # don't let ClauseElement expressions here trip things up
+            return cls((), (), ()) if current is NO_VALUE else cls((), [current], ())
         elif (
             current is not NO_VALUE
             and attribute.is_equal(current, original) is True
@@ -2421,12 +2398,13 @@ class History(NamedTuple):
         if original is _NO_HISTORY:
             original = state.committed_state.get(attribute.key, _NO_HISTORY)
 
-        if original is _NO_HISTORY:
-            if current is NO_VALUE:
-                return cls((), (), ())
-            else:
-                return cls((), [current], ())
-        elif current is original and current is not NO_VALUE:
+        if original is _NO_HISTORY and current is NO_VALUE:
+            return cls((), (), ())
+        elif (
+            original is _NO_HISTORY
+            or current is original
+            and current is not NO_VALUE
+        ):
             return cls((), [current], ())
         else:
             # current convention on related objects is to not

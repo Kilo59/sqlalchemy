@@ -293,13 +293,11 @@ class DefaultDialect(Dialect):
         **kwargs: Any,
     ):
         if server_side_cursors:
-            if not self.supports_server_side_cursors:
-                raise exc.ArgumentError(
-                    "Dialect %s does not support server side cursors" % self
-                )
-            else:
+            if self.supports_server_side_cursors:
                 self.server_side_cursors = True
 
+            else:
+                raise exc.ArgumentError(f"Dialect {self} does not support server side cursors")
         if getattr(self, "use_setinputsizes", False):
             util.warn_deprecated(
                 "The dialect-level use_setinputsizes attribute is "
@@ -433,7 +431,7 @@ class DefaultDialect(Dialect):
 
     @property
     def dialect_description(self):
-        return self.name + "+" + self.driver
+        return f"{self.name}+{self.driver}"
 
     @property
     def supports_sane_rowcount_returning(self):
@@ -455,9 +453,9 @@ class DefaultDialect(Dialect):
 
     @classmethod
     def load_provisioning(cls):
-        package = ".".join(cls.__module__.split(".")[0:-1])
+        package = ".".join(cls.__module__.split(".")[:-1])
         try:
-            __import__(package + ".provision")
+            __import__(f"{package}.provision")
         except ImportError:
             pass
 
@@ -495,8 +493,7 @@ class DefaultDialect(Dialect):
             self.default_isolation_level = None
 
         if not self._user_defined_max_identifier_length:
-            max_ident_length = self._check_max_identifier_length(connection)
-            if max_ident_length:
+            if max_ident_length := self._check_max_identifier_length(connection):
                 self.max_identifier_length = max_ident_length
 
         if (
@@ -553,15 +550,16 @@ class DefaultDialect(Dialect):
         return type_api.adapt_type(typeobj, self.colspecs)
 
     def has_index(self, connection, table_name, index_name, schema=None, **kw):
-        if not self.has_table(connection, table_name, schema=schema, **kw):
-            return False
-        for idx in self.get_indexes(
-            connection, table_name, schema=schema, **kw
-        ):
-            if idx["name"] == index_name:
-                return True
-        else:
-            return False
+        return (
+            any(
+                idx["name"] == index_name
+                for idx in self.get_indexes(
+                    connection, table_name, schema=schema, **kw
+                )
+            )
+            if self.has_table(connection, table_name, schema=schema, **kw)
+            else False
+        )
 
     def has_schema(
         self, connection: Connection, schema_name: str, **kw: Any
@@ -605,10 +603,9 @@ class DefaultDialect(Dialect):
     def set_connection_execution_options(
         self, connection: Connection, opts: Mapping[str, Any]
     ) -> None:
-        supported_names = set(self.connection_characteristics).intersection(
+        if supported_names := set(self.connection_characteristics).intersection(
             opts
-        )
-        if supported_names:
+        ):
             characteristics: Mapping[str, Any] = util.immutabledict(
                 (name, opts[name]) for name in supported_names
             )
@@ -622,18 +619,13 @@ class DefaultDialect(Dialect):
         ]
 
         if connection.in_transaction():
-            trans_objs = [
+            if trans_objs := [
                 (name, obj)
                 for name, obj, value in characteristic_values
                 if obj.transactional
-            ]
-            if trans_objs:
+            ]:
                 raise exc.InvalidRequestError(
-                    "This connection has already initialized a SQLAlchemy "
-                    "Transaction() object via begin() or autobegin; "
-                    "%s may not be altered unless rollback() or commit() "
-                    "is called first."
-                    % (", ".join(name for name, obj in trans_objs))
+                    f'This connection has already initialized a SQLAlchemy Transaction() object via begin() or autobegin; {", ".join(name for name, obj in trans_objs)} may not be altered unless rollback() or commit() is called first.'
                 )
 
         dbapi_connection = connection.connection.dbapi_connection

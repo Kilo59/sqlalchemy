@@ -68,8 +68,7 @@ class _UnpickleDispatch:
                 return cast(
                     "_Dispatch[_ET]", cls.__dict__["dispatch"].dispatch
                 )._for_class(_instance_cls)
-        else:
-            raise AttributeError("No class with a 'dispatch' member present.")
+        raise AttributeError("No class with a 'dispatch' member present.")
 
 
 class _DispatchCommon(Generic[_ET]):
@@ -192,7 +191,7 @@ class _Dispatch(_DispatchCommon[_ET]):
         """
         if "_joined_dispatch_cls" not in self.__class__.__dict__:
             cls = type(
-                "Joined%s" % self.__class__.__name__,
+                f"Joined{self.__class__.__name__}",
                 (_JoinedDispatcher,),
                 {"__slots__": self._event_names},
             )
@@ -299,8 +298,8 @@ class _HasEventsDispatch(Generic[_ET]):
         dispatch_cls = cast(
             "Type[_Dispatch[_ET]]",
             type(
-                "%sDispatch" % classname,
-                (dispatch_base,),  # type: ignore
+                f"{classname}Dispatch",
+                (dispatch_base,),
                 {"__slots__": event_names},
             ),
         )
@@ -347,16 +346,15 @@ class Events(_HasEventsDispatch[_ET]):
 
         # Mapper, ClassManager, Session override this to
         # also accept classes, scoped_sessions, sessionmakers, etc.
-        if hasattr(target, "dispatch"):
-            if (
-                dispatch_is(cls.dispatch.__class__)
-                or dispatch_is(type, cls.dispatch.__class__)
-                or (
-                    dispatch_is(_JoinedDispatcher)
-                    and dispatch_parent_is(cls.dispatch.__class__)
-                )
-            ):
-                return target
+        if hasattr(target, "dispatch") and (
+            dispatch_is(cls.dispatch.__class__)
+            or dispatch_is(type, cls.dispatch.__class__)
+            or (
+                dispatch_is(_JoinedDispatcher)
+                and dispatch_parent_is(cls.dispatch.__class__)
+            )
+        ):
+            return target
 
         return None
 

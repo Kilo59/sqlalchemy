@@ -67,12 +67,12 @@ class HasAddresses:
     @declared_attr
     def addresses(cls):
         address_association = Table(
-            "%s_addresses" % cls.__tablename__,
+            f"{cls.__tablename__}_addresses",
             cls.metadata,
             Column("address_id", ForeignKey("address.id"), primary_key=True),
             Column(
-                "%s_id" % cls.__tablename__,
-                ForeignKey("%s.id" % cls.__tablename__),
+                f"{cls.__tablename__}_id",
+                ForeignKey(f"{cls.__tablename__}.id"),
                 primary_key=True,
             ),
         )

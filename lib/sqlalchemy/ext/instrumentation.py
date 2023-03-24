@@ -106,14 +106,12 @@ class ExtendedInstrumentationRegistry(InstrumentationFactory):
             if factory is not None:
                 manager = self._extended_class_manager(class_, factory)
                 return manager, factory
-        else:
-            return None, None
+        return None, None
 
     def _check_conflicts(self, class_, factory):
-        existing_factories = self._collect_management_factories_for(
+        if existing_factories := self._collect_management_factories_for(
             class_
-        ).difference([factory])
-        if existing_factories:
+        ).difference([factory]):
             raise TypeError(
                 "multiple instrumentation implementations specified "
                 "in %s inheritance hierarchy: %r"
@@ -342,8 +340,7 @@ class _ClassInstrumentationAdapter(ClassManager):
         )
 
     def initialize_collection(self, key, state, factory):
-        delegate = getattr(self._adapted, "initialize_collection", None)
-        if delegate:
+        if delegate := getattr(self._adapted, "initialize_collection", None):
             return delegate(key, state, factory)
         else:
             return ClassManager.initialize_collection(
@@ -360,10 +357,7 @@ class _ClassInstrumentationAdapter(ClassManager):
 
         A private convenience method used by the __init__ decorator.
         """
-        if self.has_state(instance):
-            return False
-        else:
-            return self.setup_instance(instance)
+        return False if self.has_state(instance) else self.setup_instance(instance)
 
     def setup_instance(self, instance, state=None):
         self._adapted.initialize_instance_dict(self.class_, instance)

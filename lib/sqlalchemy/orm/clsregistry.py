@@ -142,9 +142,7 @@ def remove_class(
         try:
             module.remove_class(classname, cls)
         except AttributeError:
-            if not isinstance(module, _ModuleMarker):
-                pass
-            else:
+            if isinstance(module, _ModuleMarker):
                 raise
 
 
@@ -170,14 +168,12 @@ def _key_is_empty(
         return True
 
     thing = decl_class_registry[key]
-    if isinstance(thing, _MultipleClassMarker):
-        for sub_thing in thing.contents:
-            if test(sub_thing):
-                return False
-        else:
-            raise NotImplementedError("unknown codepath")
-    else:
+    if not isinstance(thing, _MultipleClassMarker):
         return not test(thing)
+    for sub_thing in thing.contents:
+        if test(sub_thing):
+            return False
+    raise NotImplementedError("unknown codepath")
 
 
 class ClsRegistryToken:
@@ -217,17 +213,12 @@ class _MultipleClassMarker(ClsRegistryToken):
     def attempt_get(self, path: List[str], key: str) -> Type[Any]:
         if len(self.contents) > 1:
             raise exc.InvalidRequestError(
-                'Multiple classes found for path "%s" '
-                "in the registry of this declarative "
-                "base. Please use a fully module-qualified path."
-                % (".".join(path + [key]))
+                f'Multiple classes found for path "{".".join(path + [key])}" in the registry of this declarative base. Please use a fully module-qualified path.'
             )
-        else:
-            ref = list(self.contents)[0]
-            cls = ref()
-            if cls is None:
-                raise NameError(key)
-            return cls
+        cls = list(self.contents)[0]()
+        if cls is None:
+            raise NameError(key)
+        return cls
 
     def _remove_item(self, ref: weakref.ref[Type[Any]]) -> None:
         self.contents.discard(ref)
@@ -273,10 +264,7 @@ class _ModuleMarker(ClsRegistryToken):
         self.name = name
         self.contents = {}
         self.mod_ns = _ModNS(self)
-        if self.parent:
-            self.path = self.parent.path + [self.name]
-        else:
-            self.path = []
+        self.path = self.parent.path + [self.name] if self.parent else []
         _registries.add(self)
 
     def __contains__(self, name: str) -> bool:
@@ -343,9 +331,8 @@ class _ModNS:
             if value is not None:
                 if isinstance(value, _ModuleMarker):
                     return value.mod_ns
-                else:
-                    assert isinstance(value, _MultipleClassMarker)
-                    return value.attempt_get(self.__parent.path, key)
+                assert isinstance(value, _MultipleClassMarker)
+                return value.attempt_get(self.__parent.path, key)
         raise NameError(
             "Module %r has no mapped classes "
             "registered under the name %r" % (self.__parent.name, key)
@@ -361,8 +348,7 @@ class _GetColumns:
         self.cls = cls
 
     def __getattr__(self, key: str) -> Any:
-        mp = class_mapper(self.cls, configure=False)
-        if mp:
+        if mp := class_mapper(self.cls, configure=False):
             if key not in mp.all_orm_descriptors:
                 raise AttributeError(
                     "Class %r does not have a mapped column named %r"
@@ -483,20 +469,7 @@ class _class_resolver:
         return self.fallback[key]
 
     def _raise_for_name(self, name: str, err: Exception) -> NoReturn:
-        generic_match = re.match(r"(.+)\[(.+)\]", name)
-
-        if generic_match:
-            clsarg = generic_match.group(2).strip("'")
-            raise exc.InvalidRequestError(
-                f"When initializing mapper {self.prop.parent}, "
-                f'expression "relationship({self.arg!r})" seems to be '
-                "using a generic class as the argument to relationship(); "
-                "please state the generic argument "
-                "using an annotation, e.g. "
-                f'"{self.prop.key}: Mapped[{generic_match.group(1)}'
-                f"['{clsarg}']] = relationship()\""
-            ) from err
-        else:
+        if not (generic_match := re.match(r"(.+)\[(.+)\]", name)):
             raise exc.InvalidRequestError(
                 "When initializing mapper %s, expression %r failed to "
                 "locate a name (%r). If this is a class name, consider "
@@ -504,6 +477,10 @@ class _class_resolver:
                 "both dependent classes have been defined."
                 % (self.prop.parent, self.arg, name, self.cls)
             ) from err
+        clsarg = generic_match[2].strip("'")
+        raise exc.InvalidRequestError(
+            f"""When initializing mapper {self.prop.parent}, expression "relationship({self.arg!r})" seems to be using a generic class as the argument to relationship(); please state the generic argument using an annotation, e.g. "{self.prop.key}: Mapped[{generic_match[1]}['{clsarg}']] = relationship()\""""
+        ) from err
 
     def _resolve_name(self) -> Union[Table, Type[Any], _ModNS]:
         name = self.arg
@@ -511,10 +488,7 @@ class _class_resolver:
         rval = None
         try:
             for token in name.split("."):
-                if rval is None:
-                    rval = d[token]
-                else:
-                    rval = getattr(rval, token)
+                rval = d[token] if rval is None else getattr(rval, token)
         except KeyError as err:
             self._raise_for_name(name, err)
         except NameError as n:
@@ -522,19 +496,15 @@ class _class_resolver:
         else:
             if isinstance(rval, _GetColumns):
                 return rval.cls
-            else:
-                if TYPE_CHECKING:
-                    assert isinstance(rval, (type, Table, _ModNS))
-                return rval
+            if TYPE_CHECKING:
+                assert isinstance(rval, (type, Table, _ModNS))
+            return rval
 
     def __call__(self) -> Any:
         try:
             x = eval(self.arg, globals(), self._dict)
 
-            if isinstance(x, _GetColumns):
-                return x.cls
-            else:
-                return x
+            return x.cls if isinstance(x, _GetColumns) else x
         except NameError as n:
             self._raise_for_name(n.args[0], n)
 

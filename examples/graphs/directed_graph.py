@@ -73,7 +73,7 @@ Edge(n3, n6)
 session.add_all([n1, n2, n3, n4, n5, n6, n7])
 session.commit()
 
-assert [x for x in n3.higher_neighbors()] == [n6]
-assert [x for x in n3.lower_neighbors()] == [n1]
-assert [x for x in n2.lower_neighbors()] == [n1]
-assert [x for x in n2.higher_neighbors()] == [n1, n5, n7]
+assert list(n3.higher_neighbors()) == [n6]
+assert list(n3.lower_neighbors()) == [n1]
+assert list(n2.lower_neighbors()) == [n1]
+assert list(n2.higher_neighbors()) == [n1, n5, n7]

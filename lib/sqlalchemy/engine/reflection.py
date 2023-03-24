@@ -83,7 +83,7 @@ def cache(
     *args: Any,
     **kw: Any,
 ) -> _R:
-    info_cache = kw.get("info_cache", None)
+    info_cache = kw.get("info_cache")
     if info_cache is None:
         return fn(self, con, *args, **kw)
     exclude = {"info_cache", "unreflectable"}
@@ -104,13 +104,13 @@ def flexi_cache(
 ) -> Callable[[Callable[..., _R]], Callable[..., _R]]:
     @util.decorator
     def go(
-        fn: Callable[..., _R],
-        self: Dialect,
-        con: Connection,
-        *args: Any,
-        **kw: Any,
-    ) -> _R:
-        info_cache = kw.get("info_cache", None)
+            fn: Callable[..., _R],
+            self: Dialect,
+            con: Connection,
+            *args: Any,
+            **kw: Any,
+        ) -> _R:
+        info_cache = kw.get("info_cache")
         if info_cache is None:
             return fn(self, con, *args, **kw)
         key = _ad_hoc_cache_key_from_args((fn.__name__,), traverse_args, args)
@@ -318,10 +318,7 @@ class Inspector(inspection.Inspectable["Inspector"]):
 
         """
         conn: Connection
-        if self._op_context_requires_connect:
-            conn = self.bind.connect()  # type: ignore[union-attr]
-        else:
-            conn = self.bind  # type: ignore[assignment]
+        conn = self.bind.connect() if self._op_context_requires_connect else self.bind
         try:
             yield conn
         finally:
@@ -1548,8 +1545,7 @@ class Inspector(inspection.Inspectable["Inspector"]):
 
         # reflect table options, like mysql_engine
         if _reflect_info.table_options:
-            tbl_opts = _reflect_info.table_options.get(table_key)
-            if tbl_opts:
+            if tbl_opts := _reflect_info.table_options.get(table_key):
                 # add additional kwargs to the Table if the dialect
                 # returned them
                 table._validate_dialect_kwargs(tbl_opts)
@@ -1665,7 +1661,7 @@ class Inspector(inspection.Inspectable["Inspector"]):
         }
 
         if "dialect_options" in col_d:
-            col_kw.update(col_d["dialect_options"])
+            col_kw |= col_d["dialect_options"]
 
         colargs = []
         default: Any
@@ -1708,8 +1704,7 @@ class Inspector(inspection.Inspectable["Inspector"]):
         cols_by_orig_name: Dict[str, sa_schema.Column[Any]],
         exclude_columns: Collection[str],
     ) -> None:
-        pk_cons = _reflect_info.pk_constraint.get(table_key)
-        if pk_cons:
+        if pk_cons := _reflect_info.pk_constraint.get(table_key):
             pk_cols = [
                 cols_by_orig_name[pk]
                 for pk in pk_cons["constrained_columns"]
@@ -1771,10 +1766,10 @@ class Inspector(inspection.Inspectable["Inspector"]):
                         _reflect_info=_reflect_info,
                         **reflection_options,
                     )
-                for column in referred_columns:
-                    refspec.append(
-                        ".".join([referred_schema, referred_table, column])
-                    )
+                refspec.extend(
+                    ".".join([referred_schema, referred_table, column])
+                    for column in referred_columns
+                )
             else:
                 if resolve_fks:
                     sa_schema.Table(
@@ -1786,13 +1781,11 @@ class Inspector(inspection.Inspectable["Inspector"]):
                         _reflect_info=_reflect_info,
                         **reflection_options,
                     )
-                for column in referred_columns:
-                    refspec.append(".".join([referred_table, column]))
-            if "options" in fkey_d:
-                options = fkey_d["options"]
-            else:
-                options = {}
-
+                refspec.extend(
+                    ".".join([referred_table, column])
+                    for column in referred_columns
+                )
+            options = fkey_d["options"] if "options" in fkey_d else {}
             try:
                 table.append_constraint(
                     sa_schema.ForeignKeyConstraint(
@@ -1862,10 +1855,7 @@ class Inspector(inspection.Inspectable["Inspector"]):
                     idx_element = sql.text(expressions[index])
                 else:
                     try:
-                        if c in cols_by_orig_name:
-                            idx_element = cols_by_orig_name[c]
-                        else:
-                            idx_element = table.c[c]
+                        idx_element = cols_by_orig_name.get(c, table.c[c])
                     except KeyError:
                         util.warn(
                             f"{flavor} key {c!r} was not located in "
@@ -1912,11 +1902,7 @@ class Inspector(inspection.Inspectable["Inspector"]):
             constrained_cols = []
             for c in columns:
                 try:
-                    constrained_col = (
-                        cols_by_orig_name[c]
-                        if c in cols_by_orig_name
-                        else table.c[c]
-                    )
+                    constrained_col = cols_by_orig_name.get(c, table.c[c])
                 except KeyError:
                     util.warn(
                         "unique constraint key '%s' was not located in "
@@ -1951,8 +1937,7 @@ class Inspector(inspection.Inspectable["Inspector"]):
         table: sa_schema.Table,
         reflection_options: Dict[str, Any],
     ) -> None:
-        comment_dict = _reflect_info.table_comment.get(table_key)
-        if comment_dict:
+        if comment_dict := _reflect_info.table_comment.get(table_key):
             table.comment = comment_dict["text"]
 
     def _get_reflection_info(

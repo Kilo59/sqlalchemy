@@ -167,9 +167,8 @@ class async_scoped_session(Generic[_AS]):
                     "Scoped session is already present; "
                     "no new arguments may be specified."
                 )
-            else:
-                sess = self.session_factory(**kw)
-                self.registry.set(sess)
+            sess = self.session_factory(**kw)
+            self.registry.set(sess)
         else:
             sess = self.registry()
         if not self._support_async and sess._is_asyncio:
@@ -237,12 +236,7 @@ class async_scoped_session(Generic[_AS]):
 
         """  # noqa: E501
 
-        # this was proxied but Mypy is requiring the return type to be
-        # clarified
-
-        # work around:
-        # https://github.com/python/typing/discussions/1143
-        return_value = await self._proxied.get(
+        return await self._proxied.get(
             entity,
             ident,
             options=options,
@@ -251,7 +245,6 @@ class async_scoped_session(Generic[_AS]):
             identity_token=identity_token,
             execution_options=execution_options,
         )
-        return return_value
 
     # START PROXY METHODS async_scoped_session
 
@@ -1439,7 +1432,7 @@ class async_scoped_session(Generic[_AS]):
         return self._proxied.info
 
     @classmethod
-    async def close_all(self) -> None:
+    async def close_all(cls) -> None:
         r"""Close all :class:`_asyncio.AsyncSession` sessions.
 
         .. container:: class_bases

@@ -100,7 +100,7 @@ async def async_main():
 
     statements = [
         select(A).where(A.data == "a_%d" % random.choice(range(100)))
-        for i in range(30)
+        for _ in range(30)
     ]
 
     results = await asyncio.gather(

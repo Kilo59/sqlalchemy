@@ -175,21 +175,18 @@ def _infer_type_from_relationship(
             and isinstance(collection_cls_arg.node, FuncDef)
             and collection_cls_arg.node.type is not None
         ):
-            if python_type_for_type is not None:
-                # this can still be overridden by the left hand side
-                # within _infer_Type_from_left_and_inferred_right
+            if python_type_for_type is not None and isinstance(
+                collection_cls_arg.node.type, CallableType
+            ):
+                rt = get_proper_type(collection_cls_arg.node.type.ret_type)
 
-                # TODO: handle mypy.types.Overloaded
-                if isinstance(collection_cls_arg.node.type, CallableType):
-                    rt = get_proper_type(collection_cls_arg.node.type.ret_type)
-
-                    if isinstance(rt, CallableType):
-                        callable_ret_type = get_proper_type(rt.ret_type)
-                        if isinstance(callable_ret_type, Instance):
-                            python_type_for_type = Instance(
-                                callable_ret_type.type,
-                                [python_type_for_type],
-                            )
+                if isinstance(rt, CallableType):
+                    callable_ret_type = get_proper_type(rt.ret_type)
+                    if isinstance(callable_ret_type, Instance):
+                        python_type_for_type = Instance(
+                            callable_ret_type.type,
+                            [python_type_for_type],
+                        )
         else:
             util.fail(
                 api,
@@ -211,35 +208,33 @@ def _infer_type_from_relationship(
                 [python_type_for_type, NoneType()]
             )
 
-    else:
-        if left_hand_explicit_type is None:
-            msg = (
-                "Can't infer scalar or collection for ORM mapped expression "
-                "assigned to attribute '{}' if both 'uselist' and "
-                "'collection_class' arguments are absent from the "
-                "relationship(); please specify a "
-                "type annotation on the left hand side."
-            )
-            util.fail(api, msg.format(node.name), node)
+    elif left_hand_explicit_type is None:
+        msg = (
+            "Can't infer scalar or collection for ORM mapped expression "
+            "assigned to attribute '{}' if both 'uselist' and "
+            "'collection_class' arguments are absent from the "
+            "relationship(); please specify a "
+            "type annotation on the left hand side."
+        )
+        util.fail(api, msg.format(node.name), node)
 
     if python_type_for_type is None:
         return infer_type_from_left_hand_type_only(
             api, node, left_hand_explicit_type
         )
     elif left_hand_explicit_type is not None:
-        if type_is_a_collection:
-            assert isinstance(left_hand_explicit_type, Instance)
-            assert isinstance(python_type_for_type, Instance)
-            return _infer_collection_type_from_left_and_inferred_right(
-                api, node, left_hand_explicit_type, python_type_for_type
-            )
-        else:
+        if not type_is_a_collection:
             return _infer_type_from_left_and_inferred_right(
                 api,
                 node,
                 left_hand_explicit_type,
                 python_type_for_type,
             )
+        assert isinstance(left_hand_explicit_type, Instance)
+        assert isinstance(python_type_for_type, Instance)
+        return _infer_collection_type_from_left_and_inferred_right(
+            api, node, left_hand_explicit_type, python_type_for_type
+        )
     else:
         return python_type_for_type
 
@@ -405,28 +400,27 @@ def _infer_type_from_decl_column(
 
         right_hand_expression = stmt.rvalue
 
-    for column_arg in right_hand_expression.args[0:2]:
-        if isinstance(column_arg, CallExpr):
-            if isinstance(column_arg.callee, RefExpr):
-                # x = Column(String(50))
-                callee = column_arg.callee
-                type_args: Sequence[Expression] = column_arg.args
-                break
+    for column_arg in right_hand_expression.args[:2]:
+        if isinstance(column_arg, CallExpr) and isinstance(
+            column_arg.callee, RefExpr
+        ):
+            # x = Column(String(50))
+            callee = column_arg.callee
+            type_args: Sequence[Expression] = column_arg.args
+            break
+        elif (
+            isinstance(column_arg, CallExpr)
+            or isinstance(column_arg, (NameExpr, MemberExpr))
+            and not isinstance(column_arg.node, TypeInfo)
+        ):
+            pass
         elif isinstance(column_arg, (NameExpr, MemberExpr)):
-            if isinstance(column_arg.node, TypeInfo):
-                # x = Column(String)
-                callee = column_arg
-                type_args = ()
-                break
-            else:
-                # x = Column(some_name, String), go to next argument
-                continue
-        elif isinstance(column_arg, (StrExpr,)):
+            # x = Column(String)
+            callee = column_arg
+            type_args = ()
+            break
+        elif isinstance(column_arg, (StrExpr, LambdaExpr)):
             # x = Column("name", String), go to next argument
-            continue
-        elif isinstance(column_arg, (LambdaExpr,)):
-            # x = Column("name", String, default=lambda: uuid.uuid4())
-            # go to next argument
             continue
         else:
             assert False
@@ -434,27 +428,25 @@ def _infer_type_from_decl_column(
     if callee is None:
         return None
 
-    if isinstance(callee.node, TypeInfo) and names.mro_has_id(
+    if not isinstance(callee.node, TypeInfo) or not names.mro_has_id(
         callee.node.mro, names.TYPEENGINE
     ):
-        python_type_for_type = extract_python_type_from_typeengine(
-            api, callee.node, type_args
-        )
-
-        if left_hand_explicit_type is not None:
-
-            return _infer_type_from_left_and_inferred_right(
-                api, node, left_hand_explicit_type, python_type_for_type
-            )
-
-        else:
-            return UnionType([python_type_for_type, NoneType()])
-    else:
         # it's not TypeEngine, it's typically implicitly typed
         # like ForeignKey.  we can't infer from the right side.
         return infer_type_from_left_hand_type_only(
             api, node, left_hand_explicit_type
         )
+    python_type_for_type = extract_python_type_from_typeengine(
+        api, callee.node, type_args
+    )
+
+    return (
+        _infer_type_from_left_and_inferred_right(
+            api, node, left_hand_explicit_type, python_type_for_type
+        )
+        if left_hand_explicit_type is not None
+        else UnionType([python_type_for_type, NoneType()])
+    )
 
 
 def _infer_type_from_left_and_inferred_right(
@@ -539,22 +531,20 @@ def infer_type_from_left_hand_type_only(
     the type.
 
     """
-    if left_hand_explicit_type is None:
-        msg = (
-            "Can't infer type from ORM mapped expression "
-            "assigned to attribute '{}'; please specify a "
-            "Python type or "
-            "Mapped[<python type>] on the left hand side."
-        )
-        util.fail(api, msg.format(node.name), node)
-
-        return api.named_type(
-            names.NAMED_TYPE_SQLA_MAPPED, [AnyType(TypeOfAny.special_form)]
-        )
-
-    else:
+    if left_hand_explicit_type is not None:
         # use type from the left hand side
         return left_hand_explicit_type
+    msg = (
+        "Can't infer type from ORM mapped expression "
+        "assigned to attribute '{}'; please specify a "
+        "Python type or "
+        "Mapped[<python type>] on the left hand side."
+    )
+    util.fail(api, msg.format(node.name), node)
+
+    return api.named_type(
+        names.NAMED_TYPE_SQLA_MAPPED, [AnyType(TypeOfAny.special_form)]
+    )
 
 
 def extract_python_type_from_typeengine(
@@ -564,19 +554,17 @@ def extract_python_type_from_typeengine(
 ) -> ProperType:
     if node.fullname == "sqlalchemy.sql.sqltypes.Enum" and type_args:
         first_arg = type_args[0]
-        if isinstance(first_arg, RefExpr) and isinstance(
+        if not isinstance(first_arg, RefExpr) or not isinstance(
             first_arg.node, TypeInfo
         ):
-            for base_ in first_arg.node.mro:
-                if base_.fullname == "enum.Enum":
-                    return Instance(first_arg.node, [])
-            # TODO: support other pep-435 types here
-        else:
             return api.named_type(names.NAMED_TYPE_BUILTINS_STR, [])
 
-    assert node.has_base("sqlalchemy.sql.type_api.TypeEngine"), (
-        "could not extract Python type from node: %s" % node
-    )
+        for base_ in first_arg.node.mro:
+            if base_.fullname == "enum.Enum":
+                return Instance(first_arg.node, [])
+    assert node.has_base(
+        "sqlalchemy.sql.type_api.TypeEngine"
+    ), f"could not extract Python type from node: {node}"
 
     type_engine_sym = api.lookup_fully_qualified_or_none(
         "sqlalchemy.sql.type_api.TypeEngine"

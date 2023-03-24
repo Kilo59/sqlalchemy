@@ -253,16 +253,14 @@ class Profiler:
     @classmethod
     def setup(cls, fn):
         if cls._setup is not None:
-            raise ValueError("setup function already set to %s" % cls._setup)
+            raise ValueError(f"setup function already set to {cls._setup}")
         cls._setup = staticmethod(fn)
         return fn
 
     @classmethod
     def setup_once(cls, fn):
         if cls._setup_once is not None:
-            raise ValueError(
-                "setup_once function already set to %s" % cls._setup_once
-            )
+            raise ValueError(f"setup_once function already set to {cls._setup_once}")
         cls._setup_once = staticmethod(fn)
         return fn
 
@@ -270,14 +268,14 @@ class Profiler:
         if self.test:
             tests = [fn for fn in self.tests if fn.__name__ in self.test]
             if not tests:
-                raise ValueError("No such test(s): %s" % self.test)
+                raise ValueError(f"No such test(s): {self.test}")
         else:
             tests = self.tests
 
         if self._setup_once:
             print("Running setup once...")
             self._setup_once(self.dburl, self.echo, self.num)
-        print("Tests to run: %s" % ", ".join([t.__name__ for t in tests]))
+        print(f'Tests to run: {", ".join([t.__name__ for t in tests])}')
         for test in tests:
             self._run_test(test)
             self.stats[-1].report()
@@ -329,7 +327,7 @@ class Profiler:
             if len(sys.argv) > 1:
                 potential_name = sys.argv[1]
                 try:
-                    __import__(__name__ + "." + potential_name)
+                    __import__(f"{__name__}.{potential_name}")
                 except ImportError:
                     pass
 
@@ -388,7 +386,7 @@ class Profiler:
         args.profile = args.profile or args.dump or args.raw
 
         if cls.name is None:
-            __import__(__name__ + "." + args.name)
+            __import__(f"{__name__}.{args.name}")
 
         Profiler(args).run()
 
@@ -396,9 +394,8 @@ class Profiler:
     def _suite_names(cls):
         suites = []
         for file_ in os.listdir(os.path.dirname(__file__)):
-            match = re.match(r"^([a-z].*).py$", file_)
-            if match:
-                suites.append(match.group(1))
+            if match := re.match(r"^([a-z].*).py$", file_):
+                suites.append(match[1])
         return suites
 
 

@@ -79,7 +79,7 @@ class PyODBCConnector(Connector):
         else:
 
             def check_quote(token: str) -> str:
-                if ";" in str(token) or str(token).startswith("{"):
+                if ";" in token or token.startswith("{"):
                     token = "{%s}" % token.replace("}", "}}")
                 return token
 
@@ -89,9 +89,7 @@ class PyODBCConnector(Connector):
                 "host" in keys and "database" not in keys
             )
             if dsn_connection:
-                connectors = [
-                    "dsn=%s" % (keys.pop("host", "") or keys.pop("dsn", ""))
-                ]
+                connectors = [f'dsn={keys.pop("host", "") or keys.pop("dsn", "")}']
             else:
                 port = ""
                 if "port" in keys and "port" not in query:
@@ -111,21 +109,21 @@ class PyODBCConnector(Connector):
 
                 connectors.extend(
                     [
-                        "Server=%s%s" % (keys.pop("host", ""), port),
-                        "Database=%s" % keys.pop("database", ""),
+                        f'Server={keys.pop("host", "")}{port}',
+                        f'Database={keys.pop("database", "")}',
                     ]
                 )
 
             user = keys.pop("user", None)
             if user:
-                connectors.append("UID=%s" % user)
+                connectors.append(f"UID={user}")
                 pwd = keys.pop("password", "")
                 if pwd:
-                    connectors.append("PWD=%s" % pwd)
+                    connectors.append(f"PWD={pwd}")
             else:
                 authentication = keys.pop("authentication", None)
                 if authentication:
-                    connectors.append("Authentication=%s" % authentication)
+                    connectors.append(f"Authentication={authentication}")
                 else:
                     connectors.append("Trusted_Connection=Yes")
 
@@ -134,11 +132,9 @@ class PyODBCConnector(Connector):
             # client encoding.  This should obviously be set to 'No' if
             # you query a cp1253 encoded database from a latin1 client...
             if "odbc_autotranslate" in keys:
-                connectors.append(
-                    "AutoTranslate=%s" % keys.pop("odbc_autotranslate")
-                )
+                connectors.append(f'AutoTranslate={keys.pop("odbc_autotranslate")}')
 
-            connectors.extend(["%s=%s" % (k, v) for k, v in keys.items()])
+            connectors.extend([f"{k}={v}" for k, v in keys.items()])
 
         return ((";".join(connectors),), connect_args)
 
@@ -158,19 +154,15 @@ class PyODBCConnector(Connector):
             return False
 
     def _dbapi_version(self) -> interfaces.VersionInfoType:
-        if not self.dbapi:
-            return ()
-        return self._parse_dbapi_version(self.dbapi.version)
+        return self._parse_dbapi_version(self.dbapi.version) if self.dbapi else ()
 
     def _parse_dbapi_version(self, vers: str) -> interfaces.VersionInfoType:
         m = re.match(r"(?:py.*-)?([\d\.]+)(?:-(\w+))?", vers)
         if not m:
             return ()
-        vers_tuple: interfaces.VersionInfoType = tuple(
-            [int(x) for x in m.group(1).split(".")]
-        )
-        if m.group(2):
-            vers_tuple += (m.group(2),)
+        vers_tuple: interfaces.VersionInfoType = tuple(int(x) for x in m[1].split("."))
+        if m[2]:
+            vers_tuple += (m[2], )
         return vers_tuple
 
     def _get_server_version_info(
@@ -217,9 +209,7 @@ class PyODBCConnector(Connector):
 
         cursor.setinputsizes(
             [
-                (dbtype, None, None)
-                if not isinstance(dbtype, tuple)
-                else dbtype
+                dbtype if isinstance(dbtype, tuple) else (dbtype, None, None)
                 for key, dbtype, sqltype in list_of_tuples
             ]
         )

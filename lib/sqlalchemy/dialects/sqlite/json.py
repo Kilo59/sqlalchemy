@@ -67,20 +67,15 @@ class _FormatTypeMixin:
 
 class JSONIndexType(_FormatTypeMixin, sqltypes.JSON.JSONIndexType):
     def _format_value(self, value):
-        if isinstance(value, int):
-            value = "$[%s]" % value
-        else:
-            value = '$."%s"' % value
+        value = f"$[{value}]" if isinstance(value, int) else f'$."{value}"'
         return value
 
 
 class JSONPathType(_FormatTypeMixin, sqltypes.JSON.JSONPathType):
     def _format_value(self, value):
-        return "$%s" % (
-            "".join(
-                [
-                    "[%s]" % elem if isinstance(elem, int) else '."%s"' % elem
-                    for elem in value
-                ]
-            )
+        return "$%s" % "".join(
+            [
+                f"[{elem}]" if isinstance(elem, int) else f'."{elem}"'
+                for elem in value
+            ]
         )

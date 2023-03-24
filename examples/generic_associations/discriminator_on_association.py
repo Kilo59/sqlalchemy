@@ -97,7 +97,7 @@ class HasAddresses:
         discriminator = name.lower()
 
         assoc_cls = type(
-            "%sAddressAssociation" % name,
+            f"{name}AddressAssociation",
             (AddressAssociation,),
             dict(
                 __tablename__=None,

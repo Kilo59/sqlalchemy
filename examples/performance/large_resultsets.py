@@ -72,7 +72,7 @@ def test_orm_full_objects_chunks(n):
     """Load fully tracked ORM objects a chunk at a time using yield_per()."""
 
     sess = Session(engine)
-    for obj in sess.query(Customer).yield_per(1000).limit(n):
+    for _ in sess.query(Customer).yield_per(1000).limit(n):
         pass
 
 
@@ -84,7 +84,7 @@ def test_orm_bundles(n):
     bundle = Bundle(
         "customer", Customer.id, Customer.name, Customer.description
     )
-    for row in sess.query(bundle).yield_per(10000).limit(n):
+    for _ in sess.query(bundle).yield_per(10000).limit(n):
         pass
 
 
@@ -93,7 +93,7 @@ def test_orm_columns(n):
     """Load individual columns into named tuples using the ORM."""
 
     sess = Session(engine)
-    for row in (
+    for _ in (
         sess.query(Customer.id, Customer.name, Customer.description)
         .yield_per(10000)
         .limit(n)

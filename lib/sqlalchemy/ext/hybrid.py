@@ -905,21 +905,17 @@ class HybridExtensionType(InspectionAttrExtensionType):
 
 
 class _HybridGetterType(Protocol[_T_co]):
-    def __call__(s, self: Any) -> _T_co:
+    def __call__(self, self: Any) -> _T_co:
         ...
 
 
 class _HybridSetterType(Protocol[_T_con]):
-    def __call__(s, self: Any, value: _T_con) -> None:
+    def __call__(self, self: Any, value: _T_con) -> None:
         ...
 
 
 class _HybridUpdaterType(Protocol[_T_con]):
-    def __call__(
-        s,
-        cls: Any,
-        value: Union[_T_con, _ColumnExpressionArgument[_T_con]],
-    ) -> List[Tuple[_DMLColumnArgument, Any]]:
+    def __call__(self, cls: Any, value: Union[_T_con, _ColumnExpressionArgument[_T_con]]) -> List[Tuple[_DMLColumnArgument, Any]]:
         ...
 
 
@@ -1056,10 +1052,7 @@ class hybrid_method(interfaces.InspectionAttrInfo, Generic[_P, _R]):
 
 
 def _unwrap_classmethod(meth: _T) -> _T:
-    if isinstance(meth, classmethod):
-        return meth.__func__  # type: ignore
-    else:
-        return meth
+    return meth.__func__ if isinstance(meth, classmethod) else meth
 
 
 class hybrid_property(interfaces.InspectionAttrInfo, ORMDescriptor[_T]):
@@ -1416,16 +1409,18 @@ class hybrid_property(interfaces.InspectionAttrInfo, ORMDescriptor[_T]):
         proxy_attr = attributes.create_proxied_attribute(self)
 
         def expr_comparator(
-            owner: Type[object],
-        ) -> _HybridClassLevelAccessor[_T]:
+                owner: Type[object],
+            ) -> _HybridClassLevelAccessor[_T]:
             # because this is the descriptor protocol, we don't really know
             # what our attribute name is.  so search for it through the
             # MRO.
             for lookup in owner.__mro__:
-                if self.__name__ in lookup.__dict__:
-                    if lookup.__dict__[self.__name__] is self:
-                        name = self.__name__
-                        break
+                if (
+                    self.__name__ in lookup.__dict__
+                    and lookup.__dict__[self.__name__] is self
+                ):
+                    name = self.__name__
+                    break
             else:
                 name = attributes._UNKNOWN_ATTR_KEY  # type: ignore[assignment]
 

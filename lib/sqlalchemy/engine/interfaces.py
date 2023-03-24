@@ -3355,4 +3355,4 @@ class AdaptedConnection:
         return await_only(fn(self._connection))
 
     def __repr__(self) -> str:
-        return "<AdaptedConnection %s>" % self._connection
+        return f"<AdaptedConnection {self._connection}>"

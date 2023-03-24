@@ -136,16 +136,15 @@ class _PGNumeric(sqltypes.Numeric):
                 raise exc.InvalidRequestError(
                     "Unknown PG numeric type: %d" % coltype
                 )
+        elif coltype in _FLOAT_TYPES:
+            # pg8000 returns float natively for 701
+            return None
+        elif coltype in _DECIMAL_TYPES or coltype in _INT_TYPES:
+            return processors.to_float
         else:
-            if coltype in _FLOAT_TYPES:
-                # pg8000 returns float natively for 701
-                return None
-            elif coltype in _DECIMAL_TYPES or coltype in _INT_TYPES:
-                return processors.to_float
-            else:
-                raise exc.InvalidRequestError(
-                    "Unknown PG numeric type: %d" % coltype
-                )
+            raise exc.InvalidRequestError(
+                "Unknown PG numeric type: %d" % coltype
+            )
 
 
 class _PGFloat(_PGNumeric):
@@ -256,7 +255,7 @@ _server_side_id = util.counter()
 
 class PGExecutionContext_pg8000(PGExecutionContext):
     def create_server_side_cursor(self):
-        ident = "c_%s_%s" % (hex(id(self))[2:], hex(_server_side_id())[2:])
+        ident = f"c_{hex(id(self))[2:]}_{hex(_server_side_id())[2:]}"
         return ServerSideCursor(self._dbapi_connection.cursor(), ident)
 
     def pre_exec(self):
@@ -284,7 +283,7 @@ class ServerSideCursor:
         return self.cursor.description
 
     def execute(self, operation, args=(), stream=None):
-        op = "DECLARE " + self.ident + " NO SCROLL CURSOR FOR " + operation
+        op = f"DECLARE {self.ident} NO SCROLL CURSOR FOR {operation}"
         self.cursor.execute(op, args, stream=stream)
         return self
 
@@ -293,24 +292,21 @@ class ServerSideCursor:
         return self
 
     def fetchone(self):
-        self.cursor.execute("FETCH FORWARD 1 FROM " + self.ident)
+        self.cursor.execute(f"FETCH FORWARD 1 FROM {self.ident}")
         return self.cursor.fetchone()
 
     def fetchmany(self, num=None):
         if num is None:
             return self.fetchall()
-        else:
-            self.cursor.execute(
-                "FETCH FORWARD " + str(int(num)) + " FROM " + self.ident
-            )
-            return self.cursor.fetchall()
+        self.cursor.execute(f"FETCH FORWARD {int(num)} FROM {self.ident}")
+        return self.cursor.fetchall()
 
     def fetchall(self):
-        self.cursor.execute("FETCH FORWARD ALL FROM " + self.ident)
+        self.cursor.execute(f"FETCH FORWARD ALL FROM {self.ident}")
         return self.cursor.fetchall()
 
     def close(self):
-        self.cursor.execute("CLOSE " + self.ident)
+        self.cursor.execute(f"CLOSE {self.ident}")
         self.cursor.close()
 
     def setinputsizes(self, *sizes):
@@ -397,12 +393,8 @@ class PGDialect_pg8000(PGDialect):
     def _dbapi_version(self):
         if self.dbapi and hasattr(self.dbapi, "__version__"):
             return tuple(
-                [
-                    int(x)
-                    for x in re.findall(
-                        r"(\d+)(?:[-\.]?|$)", self.dbapi.__version__
-                    )
-                ]
+                int(x)
+                for x in re.findall(r"(\d+)(?:[-\.]?|$)", self.dbapi.__version__)
             )
         else:
             return (99, 99, 99)
@@ -456,8 +448,7 @@ class PGDialect_pg8000(PGDialect):
         cursor = connection.cursor()
         try:
             cursor.execute(
-                "SET SESSION CHARACTERISTICS AS TRANSACTION %s"
-                % ("READ ONLY" if value else "READ WRITE")
+                f'SET SESSION CHARACTERISTICS AS TRANSACTION {"READ ONLY" if value else "READ WRITE"}'
             )
             cursor.execute("COMMIT")
         finally:
@@ -477,8 +468,7 @@ class PGDialect_pg8000(PGDialect):
         cursor = connection.cursor()
         try:
             cursor.execute(
-                "SET SESSION CHARACTERISTICS AS TRANSACTION %s"
-                % ("DEFERRABLE" if value else "NOT DEFERRABLE")
+                f'SET SESSION CHARACTERISTICS AS TRANSACTION {"DEFERRABLE" if value else "NOT DEFERRABLE"}'
             )
             cursor.execute("COMMIT")
         finally:
@@ -549,7 +539,7 @@ class PGDialect_pg8000(PGDialect):
 
             fns.append(on_connect)
 
-        if len(fns) > 0:
+        if fns:
 
             def on_connect(conn):
                 for fn in fns:

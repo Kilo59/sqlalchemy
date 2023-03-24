@@ -33,10 +33,11 @@ from ...engine import processors
 
 class _MSNumeric_pymssql(sqltypes.Numeric):
     def result_processor(self, dialect, type_):
-        if not self.asdecimal:
-            return processors.to_float
-        else:
-            return sqltypes.Numeric.result_processor(self, dialect, type_)
+        return (
+            sqltypes.Numeric.result_processor(self, dialect, type_)
+            if self.asdecimal
+            else processors.to_float
+        )
 
 
 class MSIdentifierPreparer_pymssql(MSIdentifierPreparer):
@@ -78,8 +79,7 @@ class MSDialect_pymssql(MSDialect):
 
     def _get_server_version_info(self, connection):
         vers = connection.exec_driver_sql("select @@version").scalar()
-        m = re.match(r"Microsoft .*? - (\d+)\.(\d+)\.(\d+)\.(\d+)", vers)
-        if m:
+        if m := re.match(r"Microsoft .*? - (\d+)\.(\d+)\.(\d+)\.(\d+)", vers):
             return tuple(int(x) for x in m.group(1, 2, 3, 4))
         else:
             return None
@@ -89,25 +89,24 @@ class MSDialect_pymssql(MSDialect):
         opts.update(url.query)
         port = opts.pop("port", None)
         if port and "host" in opts:
-            opts["host"] = "%s:%s" % (opts["host"], port)
+            opts["host"] = f'{opts["host"]}:{port}'
         return ([], opts)
 
     def is_disconnect(self, e, connection, cursor):
-        for msg in (
-            "Adaptive Server connection timed out",
-            "Net-Lib error during Connection reset by peer",
-            "message 20003",  # connection timeout
-            "Error 10054",
-            "Not connected to any MS SQL server",
-            "Connection is closed",
-            "message 20006",  # Write to the server failed
-            "message 20017",  # Unexpected EOF from the server
-            "message 20047",  # DBPROCESS is dead or not enabled
-        ):
-            if msg in str(e):
-                return True
-        else:
-            return False
+        return any(
+            msg in str(e)
+            for msg in (
+                "Adaptive Server connection timed out",
+                "Net-Lib error during Connection reset by peer",
+                "message 20003",
+                "Error 10054",
+                "Not connected to any MS SQL server",
+                "Connection is closed",
+                "message 20006",
+                "message 20017",
+                "message 20047",
+            )
+        )
 
     def get_isolation_level_values(self, dbapi_connection):
         return super().get_isolation_level_values(dbapi_connection) + [

@@ -186,7 +186,7 @@ class _PsycopgRange(ranges.AbstractRangeImpl):
                 value = ranges.Range(
                     value._lower,
                     value._upper,
-                    bounds=value._bounds if value._bounds else "[)",
+                    bounds=value._bounds or "[)",
                     empty=not value._bounds,
                 )
             return value
@@ -228,7 +228,7 @@ class _PsycopgMultiRange(ranges.AbstractMultiRangeImpl):
                     ranges.Range(
                         elem._lower,
                         elem._upper,
-                        bounds=elem._bounds if elem._bounds else "[)",
+                        bounds=elem._bounds or "[)",
                         empty=not elem._bounds,
                     )
                     for elem in value
@@ -299,8 +299,7 @@ class PGDialect_psycopg(_PGDialect_common_psycopg):
         super().__init__(**kwargs)
 
         if self.dbapi:
-            m = re.match(r"(\d+)\.(\d+)(?:\.(\d+))?", self.dbapi.__version__)
-            if m:
+            if m := re.match(r"(\d+)\.(\d+)(?:\.(\d+))?", self.dbapi.__version__):
                 self.psycopg_version = tuple(
                     int(x) for x in m.group(1, 2, 3) if x is not None
                 )
@@ -467,10 +466,11 @@ class PGDialect_psycopg(_PGDialect_common_psycopg):
         return on_connect
 
     def is_disconnect(self, e, connection, cursor):
-        if isinstance(e, self.dbapi.Error) and connection is not None:
-            if connection.closed or connection.broken:
-                return True
-        return False
+        return bool(
+            isinstance(e, self.dbapi.Error)
+            and connection is not None
+            and (connection.closed or connection.broken)
+        )
 
     def _do_prepared_twophase(self, connection, command, recover=False):
         dbapi_conn = connection.connection.dbapi_connection
@@ -551,10 +551,7 @@ class AsyncAdapt_psycopg_cursor:
         # eq/ne
         if res and res.status == self._psycopg_ExecStatus.TUPLES_OK:
             rows = self.await_(self._cursor.fetchall())
-            if not isinstance(rows, list):
-                self._rows = list(rows)
-            else:
-                self._rows = rows
+            self._rows = rows if isinstance(rows, list) else list(rows)
         return result
 
     def executemany(self, query, params_seq):
@@ -566,17 +563,13 @@ class AsyncAdapt_psycopg_cursor:
             yield self._rows.pop(0)
 
     def fetchone(self):
-        if self._rows:
-            # TODO: try to avoid pop(0) on a list
-            return self._rows.pop(0)
-        else:
-            return None
+        return self._rows.pop(0) if self._rows else None
 
     def fetchmany(self, size=None):
         if size is None:
             size = self._cursor.arraysize
 
-        retval = self._rows[0:size]
+        retval = self._rows[:size]
         self._rows = self._rows[size:]
         return retval
 

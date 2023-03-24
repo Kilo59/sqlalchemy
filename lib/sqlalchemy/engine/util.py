@@ -104,8 +104,7 @@ class TransactionalContext:
 
     @classmethod
     def _trans_ctx_check(cls, subject: _TConsSubject) -> None:
-        trans_context = subject._trans_context_manager
-        if trans_context:
+        if trans_context := subject._trans_context_manager:
             if not trans_context._transaction_is_active():
                 raise exc.InvalidRequestError(
                     "Can't operate on closed transaction inside context "
@@ -153,12 +152,11 @@ class TransactionalContext:
                 self._trans_subject = self._outer_trans_ctx = None
         else:
             try:
-                if not self._transaction_is_active():
-                    if not self._transaction_is_closed():
-                        self.close()
-                else:
+                if self._transaction_is_active():
                     if self._rollback_can_be_called():
                         self.rollback()
+                elif not self._transaction_is_closed():
+                    self.close()
             finally:
                 if not out_of_band_exit:
                     assert subject is not None

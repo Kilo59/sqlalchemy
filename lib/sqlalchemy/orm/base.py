@@ -368,18 +368,15 @@ def state_class_str(state: InstanceState[Any]) -> str:
     InstanceState.
     """
 
-    if state is None:
-        return "None"
-    else:
-        return "<%s>" % (state.class_.__name__,)
+    return "None" if state is None else f"<{state.class_.__name__}>"
 
 
 def attribute_str(instance: object, attribute: str) -> str:
-    return instance_str(instance) + "." + attribute
+    return f"{instance_str(instance)}.{attribute}"
 
 
 def state_attribute_str(state: InstanceState[Any], attribute: str) -> str:
-    return state_str(state) + "." + attribute
+    return f"{state_str(state)}.{attribute}"
 
 
 def object_mapper(instance: _T) -> Mapper[_T]:
@@ -440,9 +437,8 @@ def _class_to_mapper(
     insp = inspection.inspect(class_or_mapper, False)
     if insp is not None:
         return insp.mapper  # type: ignore
-    else:
-        assert isinstance(class_or_mapper, type)
-        raise exc.UnmappedClassError(class_or_mapper)
+    assert isinstance(class_or_mapper, type)
+    raise exc.UnmappedClassError(class_or_mapper)
 
 
 def _mapper_or_none(
@@ -454,10 +450,7 @@ def _mapper_or_none(
 
     # can't get mypy to see an overload for this
     insp = inspection.inspect(entity, False)
-    if insp is not None:
-        return insp.mapper  # type: ignore
-    else:
-        return None
+    return insp.mapper if insp is not None else None
 
 
 def _is_mapped_class(entity: Any) -> bool:
@@ -502,7 +495,7 @@ def _entity_descriptor(entity: _EntityType[Any], key: str) -> Any:
         return getattr(entity, key)
     except AttributeError as err:
         raise sa_exc.InvalidRequestError(
-            "Entity '%s' has no property '%s'" % (description, key)
+            f"Entity '{description}' has no property '{key}'"
         ) from err
 
 
@@ -557,14 +550,13 @@ def class_mapper(class_: Type[_O], configure: bool = True) -> Mapper[_O]:
 
     """
     mapper = _inspect_mapped_class(class_, configure=configure)
-    if mapper is None:
-        if not isinstance(class_, type):
-            raise sa_exc.ArgumentError(
-                "Class object expected, got '%r'." % (class_,)
-            )
-        raise exc.UnmappedClassError(class_)
-    else:
+    if mapper is not None:
         return mapper
+    if not isinstance(class_, type):
+        raise sa_exc.ArgumentError(
+            "Class object expected, got '%r'." % (class_,)
+        )
+    raise exc.UnmappedClassError(class_)
 
 
 class InspectionAttr:

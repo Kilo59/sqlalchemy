@@ -217,12 +217,12 @@ class Range(Generic[_T]):
 
         # Infinite edges are equal when they are on the same side,
         # otherwise a lower edge is considered less than the upper end
-        if value1 is value2 is None:
-            if value1_is_lower_bound == value2_is_lower_bound:
-                return 0
-            else:
-                return -1 if value1_is_lower_bound else 1
-        elif value1 is None:
+        if (
+            value1 is value2 is None
+            and value1_is_lower_bound == value2_is_lower_bound
+        ):
+            return 0
+        elif value1 is value2 is None or value1 is None:
             return -1 if value1_is_lower_bound else 1
         elif value2 is None:
             return 1 if value2_is_lower_bound else -1
@@ -246,18 +246,16 @@ class Range(Generic[_T]):
                 if not value1_inc:
                     value1 += step
                     value1_inc = True
-            else:
-                if value1_inc:
-                    value1 += step
-                    value1_inc = False
+            elif value1_inc:
+                value1 += step
+                value1_inc = False
             if value2_is_lower_bound:
                 if not value2_inc:
                     value2 += step
                     value2_inc = True
-            else:
-                if value2_inc:
-                    value2 += step
-                    value2_inc = False
+            elif value2_inc:
+                value2 += step
+                value2_inc = False
 
         if value1 < value2:  # type: ignore
             return -1
@@ -270,19 +268,19 @@ class Range(Generic[_T]):
             # need to consider the respective inclusive/exclusive
             # flag
 
-            if value1_inc and value2_inc:
+            if (
+                (not value1_inc or not value2_inc)
+                and not value1_inc
+                and not value2_inc
+                and value1_is_lower_bound == value2_is_lower_bound
+                or value1_inc
+                and value2_inc
+            ):
                 return 0
-            elif not value1_inc and not value2_inc:
-                if value1_is_lower_bound == value2_is_lower_bound:
-                    return 0
-                else:
-                    return 1 if value1_is_lower_bound else -1
-            elif not value1_inc:
+            elif not value1_inc and not value2_inc or not value1_inc:
                 return 1 if value1_is_lower_bound else -1
-            elif not value2_inc:
-                return -1 if value2_is_lower_bound else 1
             else:
-                return 0
+                return -1 if value2_is_lower_bound else 1
 
     def __eq__(self, other: Any) -> bool:  # type: ignore[override]  # noqa: E501
         """Compare this range to the `other` taking into account
@@ -335,10 +333,7 @@ class Range(Generic[_T]):
         oupper = other.upper
         oupper_b = other.bounds[1]
 
-        if self._compare_edges(supper, supper_b, oupper, oupper_b) > 0:
-            return False
-
-        return True
+        return self._compare_edges(supper, supper_b, oupper, oupper_b) <= 0
 
     def contains(self, value: Union[_T, Range[_T]]) -> bool:
         "Determine whether this range contains `value`."
@@ -372,13 +367,10 @@ class Range(Generic[_T]):
             return True
 
         # Check whether other lower bound is contained in this range
-        if (
+        return (
             self._compare_edges(olower, olower_b, slower, slower_b) >= 0
             and self._compare_edges(olower, olower_b, supper, supper_b) <= 0
-        ):
-            return True
-
-        return False
+        )
 
     def strictly_left_of(self, other: Range[_T]) -> bool:
         "Determine whether this range is completely to the left of `other`."
@@ -461,16 +453,10 @@ class Range(Generic[_T]):
             step = self._get_discrete_step()
             if step is None:
                 return False
-            if bound1 == "]":
-                if bound2 == "[":
-                    return value1 == value2 - step  # type: ignore
-                else:
-                    return value1 == value2
+            if bound1 == "]" and bound2 == "[" or bound1 != "]" and bound2 != "[":
+                return value1 == value2 - step  # type: ignore
             else:
-                if bound2 == "[":
-                    return value1 == value2
-                else:
-                    return value1 == value2 - step  # type: ignore
+                return value1 == value2
         elif res == 0:
             # Cover cases like [0,0] -|- [1,] and [0,2) -|- (1,3]
             if (
@@ -718,7 +704,7 @@ class AbstractRange(sqltypes.TypeEngine[Range[_T]]):
         elif isinstance(spec, (Decimal, float)):
             return NUMRANGE()
         elif isinstance(spec, datetime):
-            return TSRANGE() if not spec.tzinfo else TSTZRANGE()
+            return TSTZRANGE() if spec.tzinfo else TSRANGE()
         elif isinstance(spec, date):
             return DATERANGE()
         else:

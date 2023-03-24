@@ -234,19 +234,13 @@ class HSTORE(sqltypes.Indexable, sqltypes.Concatenable, sqltypes.TypeEngine):
 
     def bind_processor(self, dialect):
         def process(value):
-            if isinstance(value, dict):
-                return _serialize_hstore(value)
-            else:
-                return value
+            return _serialize_hstore(value) if isinstance(value, dict) else value
 
         return process
 
     def result_processor(self, dialect, coltype):
         def process(value):
-            if value is not None:
-                return _parse_hstore(value)
-            else:
-                return value
+            return _parse_hstore(value) if value is not None else value
 
         return process
 
@@ -364,9 +358,9 @@ def _parse_error(hstore_str, pos):
     residual = hstore_str[min(pos, hslen) : min(pos + ctx + 1, hslen)]
 
     if len(parsed_tail) > ctx:
-        parsed_tail = "[...]" + parsed_tail[1:]
+        parsed_tail = f"[...]{parsed_tail[1:]}"
     if len(residual) > ctx:
-        residual = residual[:-1] + "[...]"
+        residual = f"{residual[:-1]}[...]"
 
     return "After %r, could not parse residual at position %d: %r" % (
         parsed_tail,
@@ -433,6 +427,4 @@ def _serialize_hstore(val):
                 "%r in %s position is not a string." % (s, position)
             )
 
-    return ", ".join(
-        "%s=>%s" % (esc(k, "key"), esc(v, "value")) for k, v in val.items()
-    )
+    return ", ".join(f'{esc(k, "key")}=>{esc(v, "value")}' for k, v in val.items())

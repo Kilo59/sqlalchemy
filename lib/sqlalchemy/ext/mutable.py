@@ -849,12 +849,9 @@ class MutableDict(Mutable, Dict[_KT, _VT]):
     @classmethod
     def coerce(cls, key: str, value: Any) -> MutableDict[_KT, _VT] | None:
         """Convert plain dictionary to instance of this class."""
-        if not isinstance(value, cls):
-            if isinstance(value, dict):
-                return cls(value)
-            return Mutable.coerce(key, value)
-        else:
+        if isinstance(value, cls):
             return value
+        return cls(value) if isinstance(value, dict) else Mutable.coerce(key, value)
 
     def __getstate__(self) -> Dict[_KT, _VT]:
         return dict(self)
@@ -963,12 +960,9 @@ class MutableList(Mutable, List[_T]):
         cls, key: str, value: MutableList[_T] | _T
     ) -> Optional[MutableList[_T]]:
         """Convert plain list to instance of this class."""
-        if not isinstance(value, cls):
-            if isinstance(value, list):
-                return cls(value)
-            return Mutable.coerce(key, value)
-        else:
+        if isinstance(value, cls):
             return value
+        return cls(value) if isinstance(value, list) else Mutable.coerce(key, value)
 
 
 class MutableSet(Mutable, Set[_T]):
@@ -1053,12 +1047,9 @@ class MutableSet(Mutable, Set[_T]):
     @classmethod
     def coerce(cls, index: str, value: Any) -> Optional[MutableSet[_T]]:
         """Convert plain set to instance of this class."""
-        if not isinstance(value, cls):
-            if isinstance(value, set):
-                return cls(value)
-            return Mutable.coerce(index, value)
-        else:
+        if isinstance(value, cls):
             return value
+        return cls(value) if isinstance(value, set) else Mutable.coerce(index, value)
 
     def __getstate__(self) -> Set[_T]:
         return set(self)

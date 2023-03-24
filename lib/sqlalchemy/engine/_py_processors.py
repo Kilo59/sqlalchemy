@@ -45,34 +45,30 @@ def str_to_datetime_processor_factory(
     def process(value: Optional[str]) -> Optional[_DT]:
         if value is None:
             return None
-        else:
-            try:
-                m = rmatch(value)
-            except TypeError as err:
-                raise ValueError(
-                    "Couldn't parse %s string '%r' "
-                    "- value is not a string." % (type_.__name__, value)
-                ) from err
+        try:
+            m = rmatch(value)
+        except TypeError as err:
+            raise ValueError(
+                "Couldn't parse %s string '%r' "
+                "- value is not a string." % (type_.__name__, value)
+            ) from err
 
-            if m is None:
-                raise ValueError(
-                    "Couldn't parse %s string: "
-                    "'%s'" % (type_.__name__, value)
-                )
-            if has_named_groups:
-                groups = m.groupdict(0)
-                return type_(
-                    **dict(
-                        list(
-                            zip(
-                                iter(groups.keys()),
-                                list(map(int, iter(groups.values()))),
-                            )
+        if m is None:
+            raise ValueError(f"Couldn't parse {type_.__name__} string: '{value}'")
+        if has_named_groups:
+            groups = m.groupdict(0)
+            return type_(
+                **dict(
+                    list(
+                        zip(
+                            iter(groups.keys()),
+                            list(map(int, iter(groups.values()))),
                         )
                     )
                 )
-            else:
-                return type_(*list(map(int, m.groups(0))))
+            )
+        else:
+            return type_(*list(map(int, m.groups(0))))
 
     return process
 
@@ -83,54 +79,30 @@ def to_decimal_processor_factory(
     fstring = "%%.%df" % scale
 
     def process(value: Optional[float]) -> Optional[Decimal]:
-        if value is None:
-            return None
-        else:
-            return target_class(fstring % value)
+        return None if value is None else target_class(fstring % value)
 
     return process
 
 
 def to_float(value: Optional[Union[int, float]]) -> Optional[float]:
-    if value is None:
-        return None
-    else:
-        return float(value)
+    return None if value is None else float(value)
 
 
 def to_str(value: Optional[Any]) -> Optional[str]:
-    if value is None:
-        return None
-    else:
-        return str(value)
+    return None if value is None else str(value)
 
 
 def int_to_boolean(value: Optional[int]) -> Optional[bool]:
-    if value is None:
-        return None
-    else:
-        return bool(value)
+    return None if value is None else bool(value)
 
 
 def str_to_datetime(value: Optional[str]) -> Optional[datetime.datetime]:
-    if value is not None:
-        dt_value = datetime_cls.fromisoformat(value)
-    else:
-        dt_value = None
-    return dt_value
+    return datetime_cls.fromisoformat(value) if value is not None else None
 
 
 def str_to_time(value: Optional[str]) -> Optional[datetime.time]:
-    if value is not None:
-        dt_value = time_cls.fromisoformat(value)
-    else:
-        dt_value = None
-    return dt_value
+    return time_cls.fromisoformat(value) if value is not None else None
 
 
 def str_to_date(value: Optional[str]) -> Optional[datetime.date]:
-    if value is not None:
-        dt_value = date_cls.fromisoformat(value)
-    else:
-        dt_value = None
-    return dt_value
+    return date_cls.fromisoformat(value) if value is not None else None

@@ -53,12 +53,13 @@ def scan_declarative_assignments_and_apply_types(
 
     info = util.info_for_cls(cls, api)
 
-    if info is None:
+    if (
+        info is None
+        or info is not None
+        and cls.fullname.startswith("builtins")
+    ):
         # this can occur during cached passes
         return None
-    elif cls.fullname.startswith("builtins"):
-        return None
-
     mapped_attributes: Optional[
         List[util.SQLAlchemyAttribute]
     ] = util.get_mapped_attributes(info, api)
@@ -173,8 +174,7 @@ def _scan_symbol_table_entry(
                     else:
                         util.fail(
                             api,
-                            "Column type should be a TypeEngine "
-                            "subclass not '{}'".format(sym.node.fullname),
+                            f"Column type should be a TypeEngine subclass not '{sym.node.fullname}'",
                             value_type,
                         )
 
@@ -295,8 +295,7 @@ def _scan_declarative_decorator_stmt(
                     else:
                         util.fail(
                             api,
-                            "Column type should be a TypeEngine "
-                            "subclass not '{}'".format(sym.node.fullname),
+                            f"Column type should be a TypeEngine subclass not '{sym.node.fullname}'",
                             func_type,
                         )
 

@@ -65,10 +65,7 @@ class PolymorphicVerticalProperty:
     @hybrid_property
     def value(self):
         fieldname, discriminator = self.type_map[self.type]
-        if fieldname is None:
-            return None
-        else:
-            return getattr(self, fieldname)
+        return None if fieldname is None else getattr(self, fieldname)
 
     @value.setter
     def value(self, value):
@@ -95,7 +92,7 @@ class PolymorphicVerticalProperty:
             pairs = set(self.cls.type_map.values())
             whens = [
                 (
-                    literal_column("'%s'" % discriminator),
+                    literal_column(f"'{discriminator}'"),
                     cast(getattr(self.cls, attribute), String),
                 )
                 for attribute, discriminator in pairs
@@ -120,10 +117,7 @@ def on_new_class(mapper, cls_):
     """Look for Column objects with type info in them, and work up
     a lookup table."""
 
-    info_dict = {}
-    info_dict[type(None)] = (None, "none")
-    info_dict["none"] = (None, "none")
-
+    info_dict = {type(None): (None, "none"), "none": (None, "none")}
     for k in mapper.c.keys():
         col = mapper.c[k]
         if "type" in col.info:
@@ -177,8 +171,8 @@ if __name__ == "__main__":
             return "Animal(%r)" % self.name
 
         @classmethod
-        def with_characteristic(self, key, value):
-            return self.facts.any(key=key, value=value)
+        def with_characteristic(cls, key, value):
+            return cls.facts.any(key=key, value=value)
 
     engine = create_engine("sqlite://", echo=True)
 

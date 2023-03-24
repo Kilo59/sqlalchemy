@@ -274,33 +274,30 @@ class ShardedSession(Session):
         """
 
         if identity_token is not None:
-            obj = super()._identity_lookup(
+            return super()._identity_lookup(
                 mapper,
                 primary_key_identity,
                 identity_token=identity_token,
                 **kw,
             )
-
-            return obj
-        else:
-            for shard_id in self.identity_chooser(
+        for shard_id in self.identity_chooser(
+            mapper,
+            primary_key_identity,
+            lazy_loaded_from=lazy_loaded_from,
+            execution_options=execution_options,
+            bind_arguments=dict(bind_arguments) if bind_arguments else {},
+        ):
+            obj2 = super()._identity_lookup(
                 mapper,
                 primary_key_identity,
+                identity_token=shard_id,
                 lazy_loaded_from=lazy_loaded_from,
-                execution_options=execution_options,
-                bind_arguments=dict(bind_arguments) if bind_arguments else {},
-            ):
-                obj2 = super()._identity_lookup(
-                    mapper,
-                    primary_key_identity,
-                    identity_token=shard_id,
-                    lazy_loaded_from=lazy_loaded_from,
-                    **kw,
-                )
-                if obj2 is not None:
-                    return obj2
+                **kw,
+            )
+            if obj2 is not None:
+                return obj2
 
-            return None
+        return None
 
     def _choose_shard_and_assign(
         self,
@@ -349,9 +346,8 @@ class ShardedSession(Session):
 
             if isinstance(bind, Engine):
                 return bind.connect(**kw)
-            else:
-                assert isinstance(bind, Connection)
-                return bind
+            assert isinstance(bind, Connection)
+            return bind
 
     def get_bind(
         self,
@@ -476,9 +472,8 @@ def execute_and_instances(
 
     if shard_id is not None:
         return iter_for_shard(shard_id)
-    else:
-        partial = []
-        for shard_id in session.execute_chooser(orm_context):
-            result_ = iter_for_shard(shard_id)
-            partial.append(result_)
-        return partial[0].merge(*partial[1:])
+    partial = []
+    for shard_id in session.execute_chooser(orm_context):
+        result_ = iter_for_shard(shard_id)
+        partial.append(result_)
+    return partial[0].merge(*partial[1:])

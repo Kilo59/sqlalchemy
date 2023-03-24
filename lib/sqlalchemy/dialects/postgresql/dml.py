@@ -206,12 +206,15 @@ class OnConflictClause(ClauseElement):
 
     def __init__(self, constraint=None, index_elements=None, index_where=None):
 
-        if constraint is not None:
-            if not isinstance(constraint, str) and isinstance(
+        if (
+            constraint is not None
+            and not isinstance(constraint, str)
+            and isinstance(
                 constraint,
                 (schema.Constraint, ext.ExcludeConstraint),
-            ):
-                constraint = getattr(constraint, "name") or constraint
+            )
+        ):
+            constraint = getattr(constraint, "name") or constraint
 
         if constraint is not None:
             if index_elements is not None:

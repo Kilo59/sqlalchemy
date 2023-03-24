@@ -73,13 +73,11 @@ class HasAddresses:
     @declared_attr
     def addresses(cls):
         cls.Address = type(
-            "%sAddress" % cls.__name__,
+            f"{cls.__name__}Address",
             (Address, Base),
             dict(
-                __tablename__="%s_address" % cls.__tablename__,
-                parent_id=Column(
-                    Integer, ForeignKey("%s.id" % cls.__tablename__)
-                ),
+                __tablename__=f"{cls.__tablename__}_address",
+                parent_id=Column(Integer, ForeignKey(f"{cls.__tablename__}.id")),
                 parent=relationship(cls),
             ),
         )

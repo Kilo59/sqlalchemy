@@ -332,7 +332,7 @@ class Result:
         """Specify parameters to be replaced into the string SQL statement."""
 
         if len(args) == 1:
-            kw.update(args[0])
+            kw |= args[0]
         elif len(args) > 0:
             raise sa_exc.ArgumentError(
                 "params() takes zero or one positional argument, "
@@ -395,22 +395,15 @@ class Result:
         if query is None:
             query, statement = bq._bake(self.session)
 
-        if self._params:
-            q = query.params(self._params)
-        else:
-            q = query
+        q = query.params(self._params) if self._params else query
         for fn in self._post_criteria:
             q = fn(q)
 
         params = q._params
-        execution_options = dict(q._execution_options)
-        execution_options.update(
-            {
-                "_sa_orm_load_options": q.load_options,
-                "compiled_cache": bq._bakery,
-            }
-        )
-
+        execution_options = dict(q._execution_options) | {
+            "_sa_orm_load_options": q.load_options,
+            "compiled_cache": bq._bakery,
+        }
         result = self.session.execute(
             statement, params, execution_options=execution_options
         )
@@ -450,9 +443,7 @@ class Result:
         """
         try:
             ret = self.one()
-            if not isinstance(ret, collections_abc.Sequence):
-                return ret
-            return ret[0]
+            return ret[0] if isinstance(ret, collections_abc.Sequence) else ret
         except orm_exc.NoResultFound:
             return None
 

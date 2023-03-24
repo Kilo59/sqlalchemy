@@ -25,7 +25,7 @@ def generate_driver_url(url, driver, query_str):
 
     backend = url.get_backend_name()
 
-    new_url = url.set(drivername="%s+%s" % (backend, driver))
+    new_url = url.set(drivername=f"{backend}+{driver}")
 
     if driver != "pyodbc":
         new_url = new_url.set(query="")
@@ -44,14 +44,10 @@ def generate_driver_url(url, driver, query_str):
 @create_db.for_db("mssql")
 def _mssql_create_db(cfg, eng, ident):
     with eng.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
-        conn.exec_driver_sql("create database %s" % ident)
-        conn.exec_driver_sql(
-            "ALTER DATABASE %s SET ALLOW_SNAPSHOT_ISOLATION ON" % ident
-        )
-        conn.exec_driver_sql(
-            "ALTER DATABASE %s SET READ_COMMITTED_SNAPSHOT ON" % ident
-        )
-        conn.exec_driver_sql("use %s" % ident)
+        conn.exec_driver_sql(f"create database {ident}")
+        conn.exec_driver_sql(f"ALTER DATABASE {ident} SET ALLOW_SNAPSHOT_ISOLATION ON")
+        conn.exec_driver_sql(f"ALTER DATABASE {ident} SET READ_COMMITTED_SNAPSHOT ON")
+        conn.exec_driver_sql(f"use {ident}")
         conn.exec_driver_sql("create schema test_schema")
         conn.exec_driver_sql("create schema test_schema_2")
 
@@ -71,7 +67,7 @@ def _mssql_drop_ignore(conn, ident):
         #        "where database_id=db_id('%s')" % ident):
         #    log.info("killing SQL server session %s", row['session_id'])
         #    conn.exec_driver_sql("kill %s" % row['session_id'])
-        conn.exec_driver_sql("drop database %s" % ident)
+        conn.exec_driver_sql(f"drop database {ident}")
         log.info("Reaped db: %s", ident)
         return True
     except exc.DatabaseError as err:
@@ -94,11 +90,7 @@ def _reap_mssql_dbs(url, idents):
             "where database_id=d.database_id)"
         )
         all_names = {dbname.lower() for (dbname,) in to_reap}
-        to_drop = set()
-        for name in all_names:
-            if name in idents:
-                to_drop.add(name)
-
+        to_drop = {name for name in all_names if name in idents}
         dropped = total = 0
         for total, dbname in enumerate(to_drop, 1):
             if _mssql_drop_ignore(conn, dbname):
@@ -115,7 +107,7 @@ def _mssql_temp_table_keyword_args(cfg, eng):
 
 @get_temp_table_name.for_db("mssql")
 def _mssql_get_temp_table_name(cfg, eng, base_name):
-    return "##" + base_name
+    return f"##{base_name}"
 
 
 @drop_all_schema_objects_pre_tables.for_db("mssql")

@@ -566,10 +566,7 @@ class _CXOracleDate(oracle._OracleDate):
 
     def result_processor(self, dialect, coltype):
         def process(value):
-            if value is not None:
-                return value.date()
-            else:
-                return value
+            return value.date() if value is not None else value
 
         return process
 
@@ -660,10 +657,11 @@ class _OracleBinary(_LOBDataType, sqltypes.LargeBinary):
         return None
 
     def result_processor(self, dialect, coltype):
-        if not dialect.auto_convert_lobs:
-            return None
-        else:
-            return super().result_processor(dialect, coltype)
+        return (
+            super().result_processor(dialect, coltype)
+            if dialect.auto_convert_lobs
+            else None
+        )
 
 
 class _OracleInterval(oracle.INTERVAL):
@@ -722,14 +720,14 @@ class OracleCompiler_cx_oracle(OracleCompiler):
             # they are originally formed from reserved words, they no longer
             # need quoting :).    names that include illegal characters
             # won't work however.
-            quoted_name = '"%s"' % name
+            quoted_name = f'"{name}"'
             kw["escaped_from"] = name
             name = quoted_name
             return OracleCompiler.bindparam_string(self, name, **kw)
 
         # TODO: we could likely do away with quoting altogether for
         # Oracle parameters and use the custom escaping here
-        escaped_from = kw.get("escaped_from", None)
+        escaped_from = kw.get("escaped_from")
         if not escaped_from:
 
             if self._bind_translate_re.search(name):
@@ -741,11 +739,11 @@ class OracleCompiler_cx_oracle(OracleCompiler):
                     name,
                 )
                 if new_name[0].isdigit() or new_name[0] == "_":
-                    new_name = "D" + new_name
+                    new_name = f"D{new_name}"
                 kw["escaped_from"] = name
                 name = new_name
             elif name[0].isdigit() or name[0] == "_":
-                new_name = "D" + name
+                new_name = f"D{name}"
                 kw["escaped_from"] = name
                 name = new_name
 
@@ -758,71 +756,74 @@ class OracleExecutionContext_cx_oracle(OracleExecutionContext):
     def _generate_out_parameter_vars(self):
         # check for has_out_parameters or RETURNING, create cx_Oracle.var
         # objects if so
-        if self.compiled.has_out_parameters or self.compiled._oracle_returning:
+        if (
+            not self.compiled.has_out_parameters
+            and not self.compiled._oracle_returning
+        ):
+            return
+        out_parameters = self.out_parameters
+        assert out_parameters is not None
 
-            out_parameters = self.out_parameters
-            assert out_parameters is not None
+        len_params = len(self.parameters)
 
-            len_params = len(self.parameters)
+        quoted_bind_names = self.compiled.escaped_bind_names
+        for bindparam in self.compiled.binds.values():
+            if bindparam.isoutparam:
+                name = self.compiled.bind_names[bindparam]
+                type_impl = bindparam.type.dialect_impl(self.dialect)
 
-            quoted_bind_names = self.compiled.escaped_bind_names
-            for bindparam in self.compiled.binds.values():
-                if bindparam.isoutparam:
-                    name = self.compiled.bind_names[bindparam]
-                    type_impl = bindparam.type.dialect_impl(self.dialect)
+                if hasattr(type_impl, "_cx_oracle_var"):
+                    out_parameters[name] = type_impl._cx_oracle_var(
+                        self.dialect, self.cursor, arraysize=len_params
+                    )
+                else:
+                    dbtype = type_impl.get_dbapi_type(self.dialect.dbapi)
 
-                    if hasattr(type_impl, "_cx_oracle_var"):
-                        out_parameters[name] = type_impl._cx_oracle_var(
-                            self.dialect, self.cursor, arraysize=len_params
+                    cx_Oracle = self.dialect.dbapi
+
+                    assert cx_Oracle is not None
+
+                    if dbtype is None:
+                        raise exc.InvalidRequestError(
+                            "Cannot create out parameter for "
+                            "parameter "
+                            "%r - its type %r is not supported by"
+                            " cx_oracle" % (bindparam.key, bindparam.type)
+                        )
+
+                    # note this is an OUT parameter.   Using
+                    # non-LOB datavalues with large unicode-holding
+                    # values causes the failure (both cx_Oracle and
+                    # oracledb):
+                    # ORA-22835: Buffer too small for CLOB to CHAR or
+                    # BLOB to RAW conversion (actual: 16507,
+                    # maximum: 4000)
+                    # [SQL: INSERT INTO long_text (x, y, z) VALUES
+                    # (:x, :y, :z) RETURNING long_text.x, long_text.y,
+                    # long_text.z INTO :ret_0, :ret_1, :ret_2]
+                    # so even for DB_TYPE_NVARCHAR we convert to a LOB
+
+                    if isinstance(type_impl, _LOBDataType):
+                        if dbtype == cx_Oracle.DB_TYPE_NVARCHAR:
+                            dbtype = cx_Oracle.NCLOB
+                        elif dbtype == cx_Oracle.DB_TYPE_RAW:
+                            dbtype = cx_Oracle.BLOB
+                        # other LOB types go in directly
+
+                        out_parameters[name] = self.cursor.var(
+                            dbtype,
+                            outconverter=lambda value: value.read(),
+                            arraysize=len_params,
                         )
                     else:
-                        dbtype = type_impl.get_dbapi_type(self.dialect.dbapi)
+                        out_parameters[name] = self.cursor.var(
+                            dbtype, arraysize=len_params
+                        )
 
-                        cx_Oracle = self.dialect.dbapi
-
-                        assert cx_Oracle is not None
-
-                        if dbtype is None:
-                            raise exc.InvalidRequestError(
-                                "Cannot create out parameter for "
-                                "parameter "
-                                "%r - its type %r is not supported by"
-                                " cx_oracle" % (bindparam.key, bindparam.type)
-                            )
-
-                        # note this is an OUT parameter.   Using
-                        # non-LOB datavalues with large unicode-holding
-                        # values causes the failure (both cx_Oracle and
-                        # oracledb):
-                        # ORA-22835: Buffer too small for CLOB to CHAR or
-                        # BLOB to RAW conversion (actual: 16507,
-                        # maximum: 4000)
-                        # [SQL: INSERT INTO long_text (x, y, z) VALUES
-                        # (:x, :y, :z) RETURNING long_text.x, long_text.y,
-                        # long_text.z INTO :ret_0, :ret_1, :ret_2]
-                        # so even for DB_TYPE_NVARCHAR we convert to a LOB
-
-                        if isinstance(type_impl, _LOBDataType):
-                            if dbtype == cx_Oracle.DB_TYPE_NVARCHAR:
-                                dbtype = cx_Oracle.NCLOB
-                            elif dbtype == cx_Oracle.DB_TYPE_RAW:
-                                dbtype = cx_Oracle.BLOB
-                            # other LOB types go in directly
-
-                            out_parameters[name] = self.cursor.var(
-                                dbtype,
-                                outconverter=lambda value: value.read(),
-                                arraysize=len_params,
-                            )
-                        else:
-                            out_parameters[name] = self.cursor.var(
-                                dbtype, arraysize=len_params
-                            )
-
-                    for param in self.parameters:
-                        param[
-                            quoted_bind_names.get(name, name)
-                        ] = out_parameters[name]
+                for param in self.parameters:
+                    param[
+                        quoted_bind_names.get(name, name)
+                    ] = out_parameters[name]
 
     def _generate_cursor_outputtype_handler(self):
         output_handlers = {}
@@ -1053,8 +1054,7 @@ class OracleDialect_cx_oracle(OracleDialect):
     def _load_version(self, dbapi_module):
         version = (0, 0, 0)
         if dbapi_module is not None:
-            m = re.match(r"(\d+)\.(\d+)(?:\.(\d+))?", dbapi_module.version)
-            if m:
+            if m := re.match(r"(\d+)\.(\d+)(?:\.(\d+))?", dbapi_module.version):
                 version = tuple(
                     int(x) for x in m.group(1, 2, 3) if x is not None
                 )
@@ -1181,10 +1181,7 @@ class OracleDialect_cx_oracle(OracleDialect):
             )
 
     def _detect_decimal(self, value):
-        if "." in value:
-            return self._to_decimal(value)
-        else:
-            return int(value)
+        return self._to_decimal(value) if "." in value else int(value)
 
     _to_decimal = decimal.Decimal
 
@@ -1301,11 +1298,7 @@ class OracleDialect_cx_oracle(OracleDialect):
         if database or service_name:
             # if we have a database, then we have a remote host
             port = url.port
-            if port:
-                port = int(port)
-            else:
-                port = 1521
-
+            port = int(port) if port else 1521
             if database and service_name:
                 raise exc.InvalidRequestError(
                     '"service_name" option shouldn\'t '
@@ -1353,39 +1346,28 @@ class OracleDialect_cx_oracle(OracleDialect):
         return tuple(int(x) for x in connection.connection.version.split("."))
 
     def is_disconnect(self, e, connection, cursor):
-        (error,) = e.args
         if isinstance(
             e, (self.dbapi.InterfaceError, self.dbapi.DatabaseError)
         ) and "not connected" in str(e):
             return True
 
-        if hasattr(error, "code") and error.code in {
-            28,
-            3114,
-            3113,
-            3135,
-            1033,
-            2396,
-        }:
-            # ORA-00028: your session has been killed
-            # ORA-03114: not connected to ORACLE
-            # ORA-03113: end-of-file on communication channel
-            # ORA-03135: connection lost contact
-            # ORA-01033: ORACLE initialization or shutdown in progress
-            # ORA-02396: exceeded maximum idle time, please connect again
-            # TODO: Others ?
-            return True
-
-        if re.match(r"^(?:DPI-1010|DPI-1080|DPY-1001|DPY-4011)", str(e)):
-            # DPI-1010: not connected
-            # DPI-1080: connection was closed by ORA-3113
-            # python-oracledb's DPY-1001: not connected to database
-            # python-oracledb's DPY-4011: the database or network closed the
-            # connection
-            # TODO: others?
-            return True
-
-        return False
+        (error,) = e.args
+        return (
+            True
+            if hasattr(error, "code")
+            and error.code
+            in {
+                28,
+                3114,
+                3113,
+                3135,
+                1033,
+                2396,
+            }
+            else bool(
+                re.match(r"^(?:DPI-1010|DPI-1080|DPY-1001|DPY-4011)", str(e))
+            )
+        )
 
     def create_xid(self):
         """create a two-phase transaction ID.
@@ -1447,7 +1429,7 @@ class OracleDialect_cx_oracle(OracleDialect):
                 if dbtype
             )
 
-            cursor.setinputsizes(**{key: dbtype for key, dbtype in collection})
+            cursor.setinputsizes(**dict(collection))
 
     def do_recover_twophase(self, connection):
         raise NotImplementedError(

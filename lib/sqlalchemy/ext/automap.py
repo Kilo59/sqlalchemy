@@ -761,7 +761,7 @@ def classname_for_table(
         any non-ASCII characters.
 
     """
-    return str(tablename)
+    return tablename
 
 
 class NameForScalarRelationshipType(Protocol):
@@ -844,7 +844,7 @@ def name_for_collection_relationship(
      inspected to produce this relationship.
 
     """
-    return referred_cls.__name__.lower() + "_collection"
+    return f"{referred_cls.__name__.lower()}_collection"
 
 
 class GenerateRelationshipType(Protocol):
@@ -980,7 +980,7 @@ def generate_relationship(
     elif return_fn is relationship:
         return return_fn(referred_cls, **kw)
     else:
-        raise TypeError("Unknown relationship function: %s" % return_fn)
+        raise TypeError(f"Unknown relationship function: {return_fn}")
 
 
 ByModuleProperties = Properties[Union["ByModuleProperties", Type[Any]]]
@@ -1226,7 +1226,7 @@ class AutomapBase:
                 autoload_replace=False,
             )
             if reflection_options:
-                opts.update(reflection_options)
+                opts |= reflection_options
             cls.metadata.reflect(autoload_with, **opts)  # type: ignore[arg-type]  # noqa: E501
 
         with _CONFIGURE_MUTEX:
@@ -1437,10 +1437,10 @@ def _is_many_to_many(
         return None, None, None
 
     cols: List[Column[Any]] = sum(
-        [
+        (
             [fk.parent for fk in fk_constraint.elements]
             for fk_constraint in fk_constraints
-        ],
+        ),
         [],
     )
 
@@ -1504,12 +1504,11 @@ def _relationships_for_fks(
                     and constraint.ondelete.lower() == "cascade"
                 ):
                     o2m_kws["passive_deletes"] = True
-            else:
-                if (
+            elif (
                     constraint.ondelete
                     and constraint.ondelete.lower() == "set null"
                 ):
-                    o2m_kws["passive_deletes"] = True
+                o2m_kws["passive_deletes"] = True
 
             create_backref = backref_name not in referred_cfg.properties
 
@@ -1597,11 +1596,7 @@ def _m2m_relationship(
 
     create_backref = backref_name not in referred_cfg.properties
 
-    if table in table_to_map_config:
-        overlaps = "__*"
-    else:
-        overlaps = None
-
+    overlaps = "__*" if table in table_to_map_config else None
     if relationship_name not in map_config.properties:
         if create_backref:
             backref_obj = generate_relationship(

@@ -107,10 +107,7 @@ class ReversibleProxy(Generic[_PT]):
             if proxy is not None:
                 return proxy  # type: ignore
 
-        if regenerate:
-            return cls._regenerate_proxy_for_target(target)
-        else:
-            return None
+        return cls._regenerate_proxy_for_target(target) if regenerate else None
 
 
 class StartableContext(Awaitable[_T_co], abc.ABC):
@@ -134,8 +131,7 @@ class StartableContext(Awaitable[_T_co], abc.ABC):
 
     def _raise_for_not_started(self) -> NoReturn:
         raise async_exc.AsyncContextNotStarted(
-            "%s context has not been started and object has not been awaited."
-            % (self.__class__.__name__)
+            f"{self.__class__.__name__} context has not been started and object has not been awaited."
         )
 
 

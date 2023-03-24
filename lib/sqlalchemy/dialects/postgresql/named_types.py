@@ -73,18 +73,17 @@ class NamedType(sqltypes.TypeEngine):
         """
         if not self.create_type:
             return True
-        if "_ddl_runner" in kw:
-            ddl_runner = kw["_ddl_runner"]
-            type_name = f"pg_{self.__visit_name__}"
-            if type_name in ddl_runner.memo:
-                existing = ddl_runner.memo[type_name]
-            else:
-                existing = ddl_runner.memo[type_name] = set()
-            present = (self.schema, self.name) in existing
-            existing.add((self.schema, self.name))
-            return present
-        else:
+        if "_ddl_runner" not in kw:
             return False
+        ddl_runner = kw["_ddl_runner"]
+        type_name = f"pg_{self.__visit_name__}"
+        if type_name in ddl_runner.memo:
+            existing = ddl_runner.memo[type_name]
+        else:
+            existing = ddl_runner.memo[type_name] = set()
+        present = (self.schema, self.name) in existing
+        existing.add((self.schema, self.name))
+        return present
 
     def _on_table_create(self, target, bind, checkfirst=False, **kw):
         if (

@@ -538,7 +538,7 @@ class _dispatcher:
         # arguments from the user-defined callable, which are probably none
         # because this is not public API.  if it wasn't called, then call it
         # ourselves.
-        arm = kw.get("add_to_result_map", None)
+        arm = kw.get("add_to_result_map")
         if arm:
             arm_collection = []
             kw["add_to_result_map"] = lambda *args: arm_collection.append(args)

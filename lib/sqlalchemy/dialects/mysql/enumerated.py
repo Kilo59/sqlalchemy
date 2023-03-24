@@ -81,10 +81,7 @@ class ENUM(sqltypes.NativeForEmulated, sqltypes.Enum, _StringType):
         # was persisted that was not in the enums; that is, it does no
         # validation on the incoming data, it "truncates" it to be
         # the blank string.  Return it straight.
-        if elem == "":
-            return elem
-        else:
-            return super()._object_value_for_elem(elem)
+        return elem if elem == "" else super()._object_value_for_elem(elem)
 
     def __repr__(self):
         return util.generic_repr(
@@ -156,7 +153,7 @@ class SET(_StringType):
             self._bitmap = {
                 value: 2**idx for idx, value in enumerate(self.values)
             }
-            self._bitmap.update(
+            self._bitmap |= (
                 (2**idx, value) for idx, value in enumerate(self.values)
             )
         length = max([len(v) for v in values] + [0])
@@ -208,10 +205,7 @@ class SET(_StringType):
                 if value is None:
                     return None
                 elif isinstance(value, (int, str)):
-                    if super_convert:
-                        return super_convert(value)
-                    else:
-                        return value
+                    return super_convert(value) if super_convert else value
                 else:
                     int_value = 0
                     for v in value:
@@ -225,10 +219,7 @@ class SET(_StringType):
                 if value is not None and not isinstance(value, (int, str)):
                     value = ",".join(value)
 
-                if super_convert:
-                    return super_convert(value)
-                else:
-                    return value
+                return super_convert(value) if super_convert else value
 
         return process
 

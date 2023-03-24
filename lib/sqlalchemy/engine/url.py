@@ -219,17 +219,14 @@ class URL(NamedTuple):
     @classmethod
     def _assert_str(cls, v: str, paramname: str) -> str:
         if not isinstance(v, str):
-            raise TypeError("%s must be a string" % paramname)
+            raise TypeError(f"{paramname} must be a string")
         return v
 
     @classmethod
     def _assert_none_str(
         cls, v: Optional[str], paramname: str
     ) -> Optional[str]:
-        if v is None:
-            return v
-
-        return cls._assert_str(v, paramname)
+        return v if v is None else cls._assert_str(v, paramname)
 
     @classmethod
     def _str_dict(
@@ -441,23 +438,17 @@ class URL(NamedTuple):
 
         new_query: Mapping[str, Union[str, Sequence[str]]]
         if append:
-            new_query = {}
-
-            for k in new_keys:
-                if k in existing_query:
-                    new_query[k] = tuple(
-                        util.to_list(existing_query[k])
-                        + util.to_list(new_keys[k])
-                    )
-                else:
-                    new_query[k] = new_keys[k]
-
-            new_query.update(
-                {
-                    k: existing_query[k]
-                    for k in set(existing_query).difference(new_keys)
-                }
-            )
+            new_query = {
+                k: tuple(
+                    util.to_list(existing_query[k]) + util.to_list(new_keys[k])
+                )
+                if k in existing_query
+                else new_keys[k]
+                for k in new_keys
+            } | {
+                k: existing_query[k]
+                for k in set(existing_query).difference(new_keys)
+            }
         else:
             new_query = self.query.union(
                 {
@@ -546,22 +537,23 @@ class URL(NamedTuple):
 
         """
 
-        if not set(names).intersection(self.query):
-            return self
-
-        return URL(
-            self.drivername,
-            self.username,
-            self.password,
-            self.host,
-            self.port,
-            self.database,
-            util.immutabledict(
-                {
-                    key: self.query[key]
-                    for key in set(self.query).difference(names)
-                }
-            ),
+        return (
+            URL(
+                self.drivername,
+                self.username,
+                self.password,
+                self.host,
+                self.port,
+                self.database,
+                util.immutabledict(
+                    {
+                        key: self.query[key]
+                        for key in set(self.query).difference(names)
+                    }
+                ),
+            )
+            if set(names).intersection(self.query)
+            else self
         )
 
     @util.memoized_property
@@ -588,10 +580,7 @@ class URL(NamedTuple):
         """  # noqa: E501
 
         return util.immutabledict(
-            {
-                k: (v,) if not isinstance(v, tuple) else v
-                for k, v in self.query.items()
-            }
+            {k: v if isinstance(v, tuple) else (v,) for k, v in self.query.items()}
         )
 
     @util.deprecated(
@@ -619,7 +608,7 @@ class URL(NamedTuple):
          in the string unless this is set to False.
 
         """
-        s = self.drivername + "://"
+        s = f"{self.drivername}://"
         if self.username is not None:
             s += _sqla_url_quote(self.username)
             if self.password is not None:
@@ -630,19 +619,15 @@ class URL(NamedTuple):
                 )
             s += "@"
         if self.host is not None:
-            if ":" in self.host:
-                s += "[%s]" % self.host
-            else:
-                s += self.host
+            s += f"[{self.host}]" if ":" in self.host else self.host
         if self.port is not None:
-            s += ":" + str(self.port)
+            s += f":{str(self.port)}"
         if self.database is not None:
-            s += "/" + self.database
+            s += f"/{self.database}"
         if self.query:
-            keys = list(self.query)
-            keys.sort()
+            keys = sorted(self.query)
             s += "?" + "&".join(
-                "%s=%s" % (quote_plus(k), quote_plus(element))
+                f"{quote_plus(k)}={quote_plus(element)}"
                 for k in keys
                 for element in util.to_list(self.query[k])
             )
@@ -770,11 +755,11 @@ class URL(NamedTuple):
 
         """
         entrypoint = self._get_entrypoint()
-        if _is_async:
-            dialect_cls = entrypoint.get_async_dialect_cls(self)
-        else:
-            dialect_cls = entrypoint.get_dialect_cls(self)
-        return dialect_cls
+        return (
+            entrypoint.get_async_dialect_cls(self)
+            if _is_async
+            else entrypoint.get_dialect_cls(self)
+        )
 
     def translate_connect_args(
         self, names: Optional[List[str]] = None, **kw: Any
@@ -834,10 +819,7 @@ def make_url(name_or_url: Union[str, URL]) -> URL:
 
     """
 
-    if isinstance(name_or_url, str):
-        return _parse_url(name_or_url)
-    else:
-        return name_or_url
+    return _parse_url(name_or_url) if isinstance(name_or_url, str) else name_or_url
 
 
 def _parse_url(name: str) -> URL:
@@ -862,42 +844,38 @@ def _parse_url(name: str) -> URL:
     )
 
     m = pattern.match(name)
-    if m is not None:
-        components = m.groupdict()
-        query: Optional[Dict[str, Union[str, List[str]]]]
-        if components["query"] is not None:
-            query = {}
+    if m is None:
+        raise exc.ArgumentError(f"Could not parse SQLAlchemy URL from string '{name}'")
+    components = m.groupdict()
+    query: Optional[Dict[str, Union[str, List[str]]]]
+    if components["query"] is not None:
+        query = {}
 
-            for key, value in parse_qsl(components["query"]):
-                if key in query:
-                    query[key] = util.to_list(query[key])
-                    cast("List[str]", query[key]).append(value)
-                else:
-                    query[key] = value
-        else:
-            query = None
-        components["query"] = query
-
-        if components["username"] is not None:
-            components["username"] = _sqla_url_unquote(components["username"])
-
-        if components["password"] is not None:
-            components["password"] = _sqla_url_unquote(components["password"])
-
-        ipv4host = components.pop("ipv4host")
-        ipv6host = components.pop("ipv6host")
-        components["host"] = ipv4host or ipv6host
-        name = components.pop("name")
-
-        if components["port"]:
-            components["port"] = int(components["port"])
-
-        return URL.create(name, **components)  # type: ignore
-
+        for key, value in parse_qsl(components["query"]):
+            if key in query:
+                query[key] = util.to_list(query[key])
+                cast("List[str]", query[key]).append(value)
+            else:
+                query[key] = value
     else:
-        raise exc.ArgumentError(
-            "Could not parse SQLAlchemy URL from string '%s'" % name
-        )
+        query = None
+    components["query"] = query
+
+    if components["username"] is not None:
+        components["username"] = _sqla_url_unquote(components["username"])
+
+    if components["password"] is not None:
+        components["password"] = _sqla_url_unquote(components["password"])
+
+    ipv4host = components.pop("ipv4host")
+    ipv6host = components.pop("ipv6host")
+    components["host"] = ipv4host or ipv6host
+    name = components.pop("name")
+
+    if components["port"]:
+        components["port"] = int(components["port"])
+
+    return URL.create(name, **components)  # type: ignore
 
 
 def _sqla_url_quote(text: str) -> str:

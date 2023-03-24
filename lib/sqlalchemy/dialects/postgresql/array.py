@@ -396,7 +396,7 @@ class ARRAY(sqltypes.ARRAY):
             pattern = re.compile(r"^{(.*)}$")
 
             def handle_raw_string(value):
-                inner = pattern.match(value).group(1)
+                inner = pattern.match(value)[1]
                 return _split_enum_values(inner)
 
             def process(value):

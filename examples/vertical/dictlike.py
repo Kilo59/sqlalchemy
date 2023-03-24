@@ -111,8 +111,8 @@ if __name__ == "__main__":
             return "Animal(%r)" % self.name
 
         @classmethod
-        def with_characteristic(self, key, value):
-            return self.facts.any(key=key, value=value)
+        def with_characteristic(cls, key, value):
+            return cls.facts.any(key=key, value=value)
 
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)

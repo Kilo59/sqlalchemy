@@ -12,6 +12,7 @@ raised as a result of DBAPI exceptions are all subclasses of
 :exc:`.DBAPIError`.
 
 """
+
 from __future__ import annotations
 
 import typing
@@ -33,7 +34,6 @@ if typing.TYPE_CHECKING:
     from .sql.compiler import TypeCompiler
     from .sql.elements import ClauseElement
 
-if typing.TYPE_CHECKING:
     _version_token: str
 else:
     # set by __init__.py
@@ -52,22 +52,16 @@ class HasDescriptionCode:
         super().__init__(*arg, **kw)
 
     def _code_str(self) -> str:
-        if not self.code:
-            return ""
-        else:
-            return (
-                "(Background on this error at: "
-                "https://sqlalche.me/e/%s/%s)"
-                % (
-                    _version_token,
-                    self.code,
-                )
-            )
+        return (
+            f"(Background on this error at: https://sqlalche.me/e/{_version_token}/{self.code})"
+            if self.code
+            else ""
+        )
 
     def __str__(self) -> str:
         message = super().__str__()
         if self.code:
-            message = "%s %s" % (message, self._code_str())
+            message = f"{message} {self._code_str()}"
         return message
 
 
@@ -87,29 +81,24 @@ class SQLAlchemyError(HasDescriptionCode, Exception):
         #
         text: str
 
-        if len(self.args) == 1:
-            arg_text = self.args[0]
-
-            if isinstance(arg_text, bytes):
-                text = compat.decode_backslashreplace(arg_text, "utf-8")
-            # This is for when the argument is not a string of any sort.
-            # Otherwise, converting this exception to string would fail for
-            # non-string arguments.
-            else:
-                text = str(arg_text)
-
-            return text
-        else:
+        if len(self.args) != 1:
             # this is not a normal case within SQLAlchemy but is here for
             # compatibility with Exception.args - the str() comes out as
             # a repr() of the tuple
             return str(self.args)
+        arg_text = self.args[0]
+
+        return (
+            compat.decode_backslashreplace(arg_text, "utf-8")
+            if isinstance(arg_text, bytes)
+            else str(arg_text)
+        )
 
     def _sql_message(self) -> str:
         message = self._message()
 
         if self.code:
-            message = "%s %s" % (message, self._code_str())
+            message = f"{message} {self._code_str()}"
 
         return message
 
@@ -202,7 +191,7 @@ class CircularDependencyError(SQLAlchemyError):
         code: Optional[str] = None,
     ):
         if msg is None:
-            message += " (%s)" % ", ".join(repr(s) for s in cycles)
+            message += f' ({", ".join(repr(s) for s in cycles)})'
         else:
             message = msg
         SQLAlchemyError.__init__(self, message, code=code)
@@ -240,8 +229,10 @@ class UnsupportedCompilationError(CompileError):
         message: Optional[str] = None,
     ):
         super().__init__(
-            "Compiler %r can't render element of type %s%s"
-            % (compiler, element_type, ": %s" % message if message else "")
+            (
+                "Compiler %r can't render element of type %s%s"
+                % (compiler, element_type, f": {message}" if message else "")
+            )
         )
         self.compiler = compiler
         self.element_type = element_type
@@ -520,7 +511,7 @@ class StatementError(SQLAlchemyError):
 
         details = [self._message()]
         if self.statement:
-            stmt_detail = "[SQL: %s]" % self.statement
+            stmt_detail = f"[SQL: {self.statement}]"
             details.append(stmt_detail)
             if self.params:
                 if self.hide_parameters:
@@ -532,10 +523,9 @@ class StatementError(SQLAlchemyError):
                         self.params, 10, ismulti=self.ismulti
                     )
                     details.append("[parameters: %r]" % params_repr)
-        code_str = self._code_str()
-        if code_str:
+        if code_str := self._code_str():
             details.append(code_str)
-        return "\n".join(["(%s)" % det for det in self.detail] + details)
+        return "\n".join([f"({det})" for det in self.detail] + details)
 
 
 class DBAPIError(StatementError):
@@ -632,12 +622,7 @@ class DBAPIError(StatementError):
             # raise a StatementError
             if isinstance(orig, SQLAlchemyError) and statement:
                 return StatementError(
-                    "(%s.%s) %s"
-                    % (
-                        orig.__class__.__module__,
-                        orig.__class__.__name__,
-                        orig.args[0],
-                    ),
+                    f"({orig.__class__.__module__}.{orig.__class__.__name__}) {orig.args[0]}",
                     statement,
                     params,
                     orig,
@@ -647,12 +632,7 @@ class DBAPIError(StatementError):
                 )
             elif not isinstance(orig, dbapi_base_err) and statement:
                 return StatementError(
-                    "(%s.%s) %s"
-                    % (
-                        orig.__class__.__module__,
-                        orig.__class__.__name__,
-                        orig,
-                    ),
+                    f"({orig.__class__.__module__}.{orig.__class__.__name__}) {orig}",
                     statement,
                     params,
                     orig,
@@ -709,11 +689,10 @@ class DBAPIError(StatementError):
         try:
             text = str(orig)
         except Exception as e:
-            text = "Error in str() of DB-API-generated exception: " + str(e)
+            text = f"Error in str() of DB-API-generated exception: {str(e)}"
         StatementError.__init__(
             self,
-            "(%s.%s) %s"
-            % (orig.__class__.__module__, orig.__class__.__name__, text),
+            f"({orig.__class__.__module__}.{orig.__class__.__name__}) {text}",
             statement,
             params,
             orig,

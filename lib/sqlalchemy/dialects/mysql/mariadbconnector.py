@@ -91,12 +91,8 @@ class MySQLDialect_mariadbconnector(MySQLDialect):
     def _dbapi_version(self):
         if self.dbapi and hasattr(self.dbapi, "__version__"):
             return tuple(
-                [
-                    int(x)
-                    for x in re.findall(
-                        r"(\d+)(?:[-\.]?|$)", self.dbapi.__version__
-                    )
-                ]
+                int(x)
+                for x in re.findall(r"(\d+)(?:[-\.]?|$)", self.dbapi.__version__)
             )
         else:
             return (99, 99, 99)
@@ -104,13 +100,13 @@ class MySQLDialect_mariadbconnector(MySQLDialect):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.paramstyle = "qmark"
-        if self.dbapi is not None:
-            if self._dbapi_version < mariadb_cpy_minimum_version:
-                raise NotImplementedError(
-                    "The minimum required version for MariaDB "
-                    "Connector/Python is %s"
-                    % ".".join(str(x) for x in mariadb_cpy_minimum_version)
-                )
+        if (
+            self.dbapi is not None
+            and self._dbapi_version < mariadb_cpy_minimum_version
+        ):
+            raise NotImplementedError(
+                f'The minimum required version for MariaDB Connector/Python is {".".join(str(x) for x in mariadb_cpy_minimum_version)}'
+            )
 
     @classmethod
     def import_dbapi(cls):
@@ -154,7 +150,7 @@ class MySQLDialect_mariadbconnector(MySQLDialect):
         if self.dbapi is not None:
             try:
                 CLIENT_FLAGS = __import__(
-                    self.dbapi.__name__ + ".constants.CLIENT"
+                    f"{self.dbapi.__name__}.constants.CLIENT"
                 ).constants.CLIENT
                 client_flag |= CLIENT_FLAGS.FOUND_ROWS
             except (AttributeError, ImportError):

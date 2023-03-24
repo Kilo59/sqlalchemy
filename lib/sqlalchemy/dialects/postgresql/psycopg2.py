@@ -523,7 +523,7 @@ class _Psycopg2Range(ranges.AbstractRangeImpl):
                 value = ranges.Range(
                     value._lower,
                     value._upper,
-                    bounds=value._bounds if value._bounds else "[)",
+                    bounds=value._bounds or "[)",
                     empty=not value._bounds,
                 )
             return value
@@ -639,8 +639,7 @@ class PGDialect_psycopg2(_PGDialect_common_psycopg):
         self.executemany_batch_page_size = executemany_batch_page_size
 
         if self.dbapi and hasattr(self.dbapi, "__version__"):
-            m = re.match(r"(\d+)\.(\d+)(?:\.(\d+))?", self.dbapi.__version__)
-            if m:
+            if m := re.match(r"(\d+)\.(\d+)(?:\.(\d+))?", self.dbapi.__version__):
                 self.psycopg2_version = tuple(
                     int(x) for x in m.group(1, 2, 3) if x is not None
                 )
@@ -805,10 +804,7 @@ class PGDialect_psycopg2(_PGDialect_common_psycopg):
 
         extras = self._psycopg2_extras
         oids = extras.HstoreAdapter.get_oids(dbapi_connection)
-        if oids is not None and oids[0]:
-            return oids[0:2]
-        else:
-            return None
+        return oids[:2] if oids is not None and oids[0] else None
 
     def is_disconnect(self, e, connection, cursor):
         if isinstance(e, self.dbapi.Error):

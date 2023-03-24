@@ -687,15 +687,17 @@ def create_engine(url: Union[str, _url.URL], **kwargs: Any) -> Engine:
     # all kwargs should be consumed
     if kwargs:
         raise TypeError(
-            "Invalid argument(s) %s sent to create_engine(), "
-            "using configuration %s/%s/%s.  Please check that the "
-            "keyword arguments are appropriate for this combination "
-            "of components."
-            % (
-                ",".join("'%s'" % k for k in kwargs),
-                dialect.__class__.__name__,
-                pool.__class__.__name__,
-                engineclass.__name__,
+            (
+                "Invalid argument(s) %s sent to create_engine(), "
+                "using configuration %s/%s/%s.  Please check that the "
+                "keyword arguments are appropriate for this combination "
+                "of components."
+                % (
+                    ",".join(f"'{k}'" for k in kwargs),
+                    dialect.__class__.__name__,
+                    pool.__class__.__name__,
+                    engineclass.__name__,
+                )
             )
         )
 
@@ -808,6 +810,6 @@ def engine_from_config(
         if key.startswith(prefix)
     }
     options["_coerce_config"] = True
-    options.update(kwargs)
+    options |= kwargs
     url = options.pop("url")
     return create_engine(url, **options)

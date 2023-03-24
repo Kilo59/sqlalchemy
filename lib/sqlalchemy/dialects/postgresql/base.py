@@ -1752,7 +1752,7 @@ class PGCompiler(compiler.SQLCompiler):
         kw["eager_grouping"] = True
 
         return self._generate_generic_binary(
-            binary, " -> " if not _cast_applied else " ->> ", **kw
+            binary, " ->> " if _cast_applied else " -> ", **kw
         )
 
     def visit_json_path_getitem_op_binary(
@@ -1767,7 +1767,7 @@ class PGCompiler(compiler.SQLCompiler):
 
         kw["eager_grouping"] = True
         return self._generate_generic_binary(
-            binary, " #> " if not _cast_applied else " #>> ", **kw
+            binary, " #>> " if _cast_applied else " #> ", **kw
         )
 
     def visit_getitem_binary(self, binary, operator, **kw):
@@ -1784,10 +1784,9 @@ class PGCompiler(compiler.SQLCompiler):
 
     def visit_match_op_binary(self, binary, operator, **kw):
         if "postgresql_regconfig" in binary.modifiers:
-            regconfig = self.render_literal_value(
+            if regconfig := self.render_literal_value(
                 binary.modifiers["postgresql_regconfig"], sqltypes.STRINGTYPE
-            )
-            if regconfig:
+            ):
                 return "%s @@ plainto_tsquery(%s, %s)" % (
                     self.process(binary.left, **kw),
                     regconfig,
@@ -1808,7 +1807,7 @@ class PGCompiler(compiler.SQLCompiler):
             self.process(binary.left, **kw),
             self.process(binary.right, **kw),
         ) + (
-            " ESCAPE " + self.render_literal_value(escape, sqltypes.STRINGTYPE)
+            f" ESCAPE {self.render_literal_value(escape, sqltypes.STRINGTYPE)}"
             if escape
             else ""
         )
@@ -1819,7 +1818,7 @@ class PGCompiler(compiler.SQLCompiler):
             self.process(binary.left, **kw),
             self.process(binary.right, **kw),
         ) + (
-            " ESCAPE " + self.render_literal_value(escape, sqltypes.STRINGTYPE)
+            f" ESCAPE {self.render_literal_value(escape, sqltypes.STRINGTYPE)}"
             if escape
             else ""
         )
@@ -1827,13 +1826,9 @@ class PGCompiler(compiler.SQLCompiler):
     def _regexp_match(self, base_op, binary, operator, kw):
         flags = binary.modifiers["flags"]
         if flags is None:
-            return self._generate_generic_binary(
-                binary, " %s " % base_op, **kw
-            )
+            return self._generate_generic_binary(binary, f" {base_op} ", **kw)
         if isinstance(flags, elements.BindParameter) and flags.value == "i":
-            return self._generate_generic_binary(
-                binary, " %s* " % base_op, **kw
-            )
+            return self._generate_generic_binary(binary, f" {base_op}* ", **kw)
         return "%s %s CONCAT('(?', %s, ')', %s)" % (
             self.process(binary.left, **kw),
             base_op,
@@ -1853,11 +1848,7 @@ class PGCompiler(compiler.SQLCompiler):
         flags = binary.modifiers["flags"]
         replacement = self.process(binary.modifiers["replacement"], **kw)
         if flags is None:
-            return "REGEXP_REPLACE(%s, %s, %s)" % (
-                string,
-                pattern,
-                replacement,
-            )
+            return f"REGEXP_REPLACE({string}, {pattern}, {replacement})"
         else:
             return "REGEXP_REPLACE(%s, %s, %s, %s)" % (
                 string,
@@ -1888,7 +1879,7 @@ class PGCompiler(compiler.SQLCompiler):
         return value
 
     def visit_sequence(self, seq, **kw):
-        return "nextval('%s')" % self.preparer.format_sequence(seq)
+        return f"nextval('{self.preparer.format_sequence(seq)}')"
 
     def limit_clause(self, select, **kw):
         text = ""
@@ -1897,40 +1888,35 @@ class PGCompiler(compiler.SQLCompiler):
         if select._offset_clause is not None:
             if select._limit_clause is None:
                 text += "\n LIMIT ALL"
-            text += " OFFSET " + self.process(select._offset_clause, **kw)
+            text += f" OFFSET {self.process(select._offset_clause, **kw)}"
         return text
 
     def format_from_hint_text(self, sqltext, table, hint, iscrud):
         if hint.upper() != "ONLY":
             raise exc.CompileError("Unrecognized hint: %r" % hint)
-        return "ONLY " + sqltext
+        return f"ONLY {sqltext}"
 
     def get_select_precolumns(self, select, **kw):
         # Do not call super().get_select_precolumns because
         # it will warn/raise when distinct on is present
         if select._distinct or select._distinct_on:
-            if select._distinct_on:
-                return (
+            return (
+                (
                     "DISTINCT ON ("
                     + ", ".join(
-                        [
-                            self.process(col, **kw)
-                            for col in select._distinct_on
-                        ]
+                        [self.process(col, **kw) for col in select._distinct_on]
                     )
                     + ") "
                 )
-            else:
-                return "DISTINCT "
+                if select._distinct_on
+                else "DISTINCT "
+            )
         else:
             return ""
 
     def for_update_clause(self, select, **kw):
         if select._for_update_arg.read:
-            if select._for_update_arg.key_share:
-                tmp = " FOR KEY SHARE"
-            else:
-                tmp = " FOR SHARE"
+            tmp = " FOR KEY SHARE" if select._for_update_arg.key_share else " FOR SHARE"
         elif select._for_update_arg.key_share:
             tmp = " FOR NO KEY UPDATE"
         else:
@@ -1958,9 +1944,9 @@ class PGCompiler(compiler.SQLCompiler):
         start = self.process(func.clauses.clauses[1], **kw)
         if len(func.clauses.clauses) > 2:
             length = self.process(func.clauses.clauses[2], **kw)
-            return "SUBSTRING(%s FROM %s FOR %s)" % (s, start, length)
+            return f"SUBSTRING({s} FROM {start} FOR {length})"
         else:
-            return "SUBSTRING(%s FROM %s)" % (s, start)
+            return f"SUBSTRING({s} FROM {start})"
 
     def _on_conflict_target(self, clause, **kw):
         if clause.constraint_target is not None:
@@ -1996,10 +1982,8 @@ class PGCompiler(compiler.SQLCompiler):
         return target_text
 
     def visit_on_conflict_do_nothing(self, on_conflict, **kw):
-        target_text = self._on_conflict_target(on_conflict, **kw)
-
-        if target_text:
-            return "ON CONFLICT %s DO NOTHING" % target_text
+        if target_text := self._on_conflict_target(on_conflict, **kw):
+            return f"ON CONFLICT {target_text} DO NOTHING"
         else:
             return "ON CONFLICT DO NOTHING"
 
@@ -2008,13 +1992,12 @@ class PGCompiler(compiler.SQLCompiler):
 
         target_text = self._on_conflict_target(on_conflict, **kw)
 
-        action_set_ops = []
-
         set_parameters = dict(clause.update_values_to_set)
         # create a list of column assignment clauses as tuples
 
         insert_statement = self.stack[-1]["selectable"]
         cols = insert_statement.table.c
+        action_set_ops = []
         for c in cols:
             col_key = c.key
 
@@ -2028,27 +2011,21 @@ class PGCompiler(compiler.SQLCompiler):
             if coercions._is_literal(value):
                 value = elements.BindParameter(None, value, type_=c.type)
 
-            else:
-                if (
+            elif (
                     isinstance(value, elements.BindParameter)
                     and value.type._isnull
                 ):
-                    value = value._clone()
-                    value.type = c.type
+                value = value._clone()
+                value.type = c.type
             value_text = self.process(value.self_group(), use_schema=False)
 
             key_text = self.preparer.quote(c.name)
-            action_set_ops.append("%s = %s" % (key_text, value_text))
+            action_set_ops.append(f"{key_text} = {value_text}")
 
         # check for names that don't match columns
         if set_parameters:
             util.warn(
-                "Additional column names not matching "
-                "any column keys in table '%s': %s"
-                % (
-                    self.current_executable.table.name,
-                    (", ".join("'%s'" % c for c in set_parameters)),
-                )
+                f"""Additional column names not matching any column keys in table '{self.current_executable.table.name}': {", ".join(f"'{c}'" for c in set_parameters)}"""
             )
             for k, v in set_parameters.items():
                 key_text = (
@@ -2060,7 +2037,7 @@ class PGCompiler(compiler.SQLCompiler):
                     coercions.expect(roles.ExpressionElementRole, v),
                     use_schema=False,
                 )
-                action_set_ops.append("%s = %s" % (key_text, value_text))
+                action_set_ops.append(f"{key_text} = {value_text}")
 
         action_text = ", ".join(action_set_ops)
         if clause.update_whereclause is not None:
@@ -2068,7 +2045,7 @@ class PGCompiler(compiler.SQLCompiler):
                 clause.update_whereclause, include_table=True, use_schema=False
             )
 
-        return "ON CONFLICT %s DO UPDATE SET %s" % (target_text, action_text)
+        return f"ON CONFLICT {target_text} DO UPDATE SET {action_text}"
 
     def update_from_clause(
         self, update_stmt, from_table, extra_froms, from_hints, **kw
@@ -2144,19 +2121,15 @@ class PGDDLCompiler(compiler.DDLCompiler):
             else:
                 colspec += " SERIAL"
         else:
-            colspec += " " + self.dialect.type_compiler_instance.process(
-                column.type,
-                type_expression=column,
-                identifier_preparer=self.preparer,
-            )
+            colspec += f" {self.dialect.type_compiler_instance.process(column.type, type_expression=column, identifier_preparer=self.preparer)}"
             default = self.get_column_default_string(column)
             if default is not None:
-                colspec += " DEFAULT " + default
+                colspec += f" DEFAULT {default}"
 
         if column.computed is not None:
-            colspec += " " + self.process(column.computed)
+            colspec += f" {self.process(column.computed)}"
         if has_identity:
-            colspec += " " + self.process(column.identity)
+            colspec += f" {self.process(column.identity)}"
 
         if not column.nullable and not has_identity:
             colspec += " NOT NULL"
@@ -2205,7 +2178,7 @@ class PGDDLCompiler(compiler.DDLCompiler):
     def visit_drop_enum_type(self, drop, **kw):
         type_ = drop.element
 
-        return "DROP TYPE %s" % (self.preparer.format_type(type_))
+        return f"DROP TYPE {self.preparer.format_type(type_)}"
 
     def visit_create_domain_type(self, create, **kw):
         domain: DOMAIN = create.element
@@ -2261,58 +2234,40 @@ class PGDDLCompiler(compiler.DDLCompiler):
             preparer.format_table(index.table),
         )
 
-        using = index.dialect_options["postgresql"]["using"]
-        if using:
-            text += (
-                "USING %s "
-                % self.preparer.validate_sql_phrase(using, IDX_USING).lower()
-            )
+        if using := index.dialect_options["postgresql"]["using"]:
+            text += f"USING {self.preparer.validate_sql_phrase(using, IDX_USING).lower()} "
 
         ops = index.dialect_options["postgresql"]["ops"]
-        text += "(%s)" % (
-            ", ".join(
-                [
-                    self.sql_compiler.process(
-                        expr.self_group()
-                        if not isinstance(expr, expression.ColumnClause)
-                        else expr,
-                        include_table=False,
-                        literal_binds=True,
-                    )
-                    + (
-                        (" " + ops[expr.key])
-                        if hasattr(expr, "key") and expr.key in ops
-                        else ""
-                    )
-                    for expr in index.expressions
-                ]
-            )
+        text += "(%s)" % ", ".join(
+            [
+                self.sql_compiler.process(
+                    expr
+                    if isinstance(expr, expression.ColumnClause)
+                    else expr.self_group(),
+                    include_table=False,
+                    literal_binds=True,
+                )
+                + (
+                    f" {ops[expr.key]}"
+                    if hasattr(expr, "key") and expr.key in ops
+                    else ""
+                )
+                for expr in index.expressions
+            ]
         )
 
-        includeclause = index.dialect_options["postgresql"]["include"]
-        if includeclause:
+        if includeclause := index.dialect_options["postgresql"]["include"]:
             inclusions = [
                 index.table.c[col] if isinstance(col, str) else col
                 for col in includeclause
             ]
-            text += " INCLUDE (%s)" % ", ".join(
-                [preparer.quote(c.name) for c in inclusions]
-            )
+            text += f' INCLUDE ({", ".join([preparer.quote(c.name) for c in inclusions])})'
 
-        withclause = index.dialect_options["postgresql"]["with"]
-        if withclause:
-            text += " WITH (%s)" % (
-                ", ".join(
-                    [
-                        "%s = %s" % storage_parameter
-                        for storage_parameter in withclause.items()
-                    ]
-                )
-            )
+        if withclause := index.dialect_options["postgresql"]["with"]:
+            text += f' WITH ({", ".join(["%s = %s" % storage_parameter for storage_parameter in withclause.items()])})'
 
-        tablespace_name = index.dialect_options["postgresql"]["tablespace"]
-        if tablespace_name:
-            text += " TABLESPACE %s" % preparer.quote(tablespace_name)
+        if tablespace_name := index.dialect_options["postgresql"]["tablespace"]:
+            text += f" TABLESPACE {preparer.quote(tablespace_name)}"
 
         whereclause = index.dialect_options["postgresql"]["where"]
         if whereclause is not None:
@@ -2323,7 +2278,7 @@ class PGDDLCompiler(compiler.DDLCompiler):
             where_compiled = self.sql_compiler.process(
                 whereclause, include_table=False, literal_binds=True
             )
-            text += " WHERE " + where_compiled
+            text += f" WHERE {where_compiled}"
 
         return text
 
@@ -2346,26 +2301,19 @@ class PGDDLCompiler(compiler.DDLCompiler):
     def visit_exclude_constraint(self, constraint, **kw):
         text = ""
         if constraint.name is not None:
-            text += "CONSTRAINT %s " % self.preparer.format_constraint(
-                constraint
-            )
-        elements = []
+            text += f"CONSTRAINT {self.preparer.format_constraint(constraint)} "
         kw["include_table"] = False
         kw["literal_binds"] = True
+        elements = []
         for expr, name, op in constraint._render_exprs:
             exclude_element = self.sql_compiler.process(expr, **kw) + (
-                (" " + constraint.ops[expr.key])
+                f" {constraint.ops[expr.key]}"
                 if hasattr(expr, "key") and expr.key in constraint.ops
                 else ""
             )
 
-            elements.append("%s WITH %s" % (exclude_element, op))
-        text += "EXCLUDE USING %s (%s)" % (
-            self.preparer.validate_sql_phrase(
-                constraint.using, IDX_USING
-            ).lower(),
-            ", ".join(elements),
-        )
+            elements.append(f"{exclude_element} WITH {op}")
+        text += f'EXCLUDE USING {self.preparer.validate_sql_phrase(constraint.using, IDX_USING).lower()} ({", ".join(elements)})'
         if constraint.where is not None:
             text += " WHERE (%s)" % self.sql_compiler.process(
                 constraint.where, literal_binds=True
@@ -2420,12 +2368,10 @@ class PGDDLCompiler(compiler.DDLCompiler):
         )
 
     def visit_create_sequence(self, create, **kw):
-        prefix = None
         if create.element.data_type is not None:
-            prefix = " AS %s" % self.type_compiler.process(
-                create.element.data_type
-            )
-
+            prefix = f" AS {self.type_compiler.process(create.element.data_type)}"
+        else:
+            prefix = None
         return super().visit_create_sequence(create, prefix=prefix, **kw)
 
     def _can_comment_on_constraint(self, ddl_instance):
@@ -2453,10 +2399,7 @@ class PGDDLCompiler(compiler.DDLCompiler):
 
     def visit_drop_constraint_comment(self, drop, **kw):
         self._can_comment_on_constraint(drop)
-        return "COMMENT ON CONSTRAINT %s ON %s IS NULL" % (
-            self.preparer.format_constraint(drop.element),
-            self.preparer.format_table(drop.element.table),
-        )
+        return f"COMMENT ON CONSTRAINT {self.preparer.format_constraint(drop.element)} ON {self.preparer.format_table(drop.element.table)} IS NULL"
 
 
 class PGTypeCompiler(compiler.GenericTypeCompiler):
@@ -2494,10 +2437,11 @@ class PGTypeCompiler(compiler.GenericTypeCompiler):
         return "REGCLASS"
 
     def visit_FLOAT(self, type_, **kw):
-        if not type_.precision:
-            return "FLOAT"
-        else:
-            return "FLOAT(%(precision)s)" % {"precision": type_.precision}
+        return (
+            "FLOAT(%(precision)s)" % {"precision": type_.precision}
+            if type_.precision
+            else "FLOAT"
+        )
 
     def visit_double(self, type_, **kw):
         return self.visit_DOUBLE_PRECISION(type, **kw)
@@ -2594,7 +2538,7 @@ class PGTypeCompiler(compiler.GenericTypeCompiler):
     def visit_INTERVAL(self, type_, **kw):
         text = "INTERVAL"
         if type_.fields is not None:
-            text += " " + type_.fields
+            text += f" {type_.fields}"
         if type_.precision is not None:
             text += " (%d)" % type_.precision
         return text
@@ -2834,10 +2778,7 @@ class PGInspector(reflection.Inspector):
 class PGExecutionContext(default.DefaultExecutionContext):
     def fire_sequence(self, seq, type_):
         return self._execute_scalar(
-            (
-                "select nextval('%s')"
-                % self.identifier_preparer.format_sequence(seq)
-            ),
+            f"select nextval('{self.identifier_preparer.format_sequence(seq)}')",
             type_,
         )
 
@@ -2845,9 +2786,7 @@ class PGExecutionContext(default.DefaultExecutionContext):
         if column.primary_key and column is column.table._autoincrement_column:
             if column.server_default and column.server_default.has_argument:
                 # pre-execute passive defaults on primary key columns
-                return self._execute_scalar(
-                    "select %s" % column.server_default.arg, column.type
-                )
+                return self._execute_scalar(f"select {column.server_default.arg}", column.type)
 
             elif column.default is None or (
                 column.default.is_sequence and column.default.optional
@@ -2861,9 +2800,9 @@ class PGExecutionContext(default.DefaultExecutionContext):
                 except AttributeError:
                     tab = column.table.name
                     col = column.name
-                    tab = tab[0 : 29 + max(0, (29 - len(col)))]
-                    col = col[0 : 29 + max(0, (29 - len(tab)))]
-                    name = "%s_%s_seq" % (tab, col)
+                    tab = tab[:29 + max(0, (29 - len(col)))]
+                    col = col[:29 + max(0, (29 - len(tab)))]
+                    name = f"{tab}_{col}_seq"
                     column._postgresql_seq_name = seq_name = name
 
                 if column.table is not None:
@@ -3080,7 +3019,7 @@ class PGDialect(default.DefaultDialect):
         self.do_begin(connection.connection)
 
     def do_prepare_twophase(self, connection, xid):
-        connection.exec_driver_sql("PREPARE TRANSACTION '%s'" % xid)
+        connection.exec_driver_sql(f"PREPARE TRANSACTION '{xid}'")
 
     def do_rollback_twophase(
         self, connection, xid, is_prepared=True, recover=False
@@ -3092,11 +3031,9 @@ class PGDialect(default.DefaultDialect):
                 # Must find out a way how to make the dbapi not
                 # open a transaction.
                 connection.exec_driver_sql("ROLLBACK")
-            connection.exec_driver_sql("ROLLBACK PREPARED '%s'" % xid)
+            connection.exec_driver_sql(f"ROLLBACK PREPARED '{xid}'")
             connection.exec_driver_sql("BEGIN")
-            self.do_rollback(connection.connection)
-        else:
-            self.do_rollback(connection.connection)
+        self.do_rollback(connection.connection)
 
     def do_commit_twophase(
         self, connection, xid, is_prepared=True, recover=False
@@ -3104,7 +3041,7 @@ class PGDialect(default.DefaultDialect):
         if is_prepared:
             if recover:
                 connection.exec_driver_sql("ROLLBACK")
-            connection.exec_driver_sql("COMMIT PREPARED '%s'" % xid)
+            connection.exec_driver_sql(f"COMMIT PREPARED '{xid}'")
             connection.exec_driver_sql("BEGIN")
             self.do_rollback(connection.connection)
         else:
@@ -3210,16 +3147,14 @@ class PGDialect(default.DefaultDialect):
 
     def _get_server_version_info(self, connection):
         v = connection.exec_driver_sql("select pg_catalog.version()").scalar()
-        m = re.match(
+        if m := re.match(
             r".*(?:PostgreSQL|EnterpriseDB) "
             r"(\d+)\.?(\d+)?(?:\.(\d+))?(?:\.\d+)?(?:devel|beta)?",
             v,
-        )
-        if not m:
-            raise AssertionError(
-                "Could not determine version from string '%s'" % v
-            )
-        return tuple([int(x) for x in m.group(1, 2, 3) if x is not None])
+        ):
+            return tuple(int(x) for x in m.group(1, 2, 3) if x is not None)
+        else:
+            raise AssertionError(f"Could not determine version from string '{v}'")
 
     @reflection.cache
     def get_table_oid(self, connection, table_name, schema=None, **kw):
@@ -3347,10 +3282,7 @@ class PGDialect(default.DefaultDialect):
             ) from None
 
     def _prepare_filter_names(self, filter_names):
-        if filter_names:
-            return True, {"filter_names": filter_names}
-        else:
-            return False, {}
+        return (True, {"filter_names": filter_names}) if filter_names else (False, {})
 
     def _kind_to_relkinds(self, kind: ObjectKind) -> Tuple[str, ...]:
         if kind is ObjectKind.ANY:
@@ -3515,7 +3447,7 @@ class PGDialect(default.DefaultDialect):
         # dictionary with (name, ) if default search path or (schema, name)
         # as keys
         domains = {
-            ((d["schema"], d["name"]) if not d["visible"] else (d["name"],)): d
+            (d["name"],) if d["visible"] else (d["schema"], d["name"]): d
             for d in self._load_domains(
                 connection, schema="*", info_cache=kw.get("info_cache")
             )

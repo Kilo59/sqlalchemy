@@ -214,10 +214,7 @@ class AsyncResult(_WithKeys, AsyncCommon[Row[_TP]]):
 
         """
         row = await greenlet_spawn(self._onerow_getter, self)
-        if row is _NO_ROW:
-            return None
-        else:
-            return row
+        return None if row is _NO_ROW else row
 
     async def fetchmany(
         self, size: Optional[int] = None
@@ -703,10 +700,7 @@ class AsyncMappingResult(_WithKeys, AsyncCommon[RowMapping]):
         """
 
         row = await greenlet_spawn(self._onerow_getter, self)
-        if row is _NO_ROW:
-            return None
-        else:
-            return row
+        return None if row is _NO_ROW else row
 
     async def fetchmany(
         self, size: Optional[int] = None
@@ -956,10 +950,7 @@ async def _ensure_sync_result(result: _RT, calling_method: Any) -> _RT:
         # legacy execute(DefaultGenerator) case
         return result
 
-    if not is_cursor:
-        cursor_result = getattr(result, "raw", None)  # type: ignore
-    else:
-        cursor_result = result  # type: ignore
+    cursor_result = result if is_cursor else getattr(result, "raw", None)
     if cursor_result and cursor_result.context._is_server_side:
         await greenlet_spawn(cursor_result.close)
         raise async_exc.AsyncMethodRequired(

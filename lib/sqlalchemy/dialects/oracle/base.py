@@ -795,10 +795,7 @@ class OracleTypeCompiler(compiler.GenericTypeCompiler):
         return self.visit_SMALLINT(type_, **kw)
 
     def visit_RAW(self, type_, **kw):
-        if type_.length:
-            return "RAW(%(length)s)" % {"length": type_.length}
-        else:
-            return "RAW"
+        return "RAW(%(length)s)" % {"length": type_.length} if type_.length else "RAW"
 
     def visit_ROWID(self, type_, **kw):
         return "ROWID"
@@ -829,13 +826,10 @@ class OracleCompiler(compiler.SQLCompiler):
         return "CURRENT_TIMESTAMP"
 
     def visit_char_length_func(self, fn, **kw):
-        return "LENGTH" + self.function_argspec(fn, **kw)
+        return f"LENGTH{self.function_argspec(fn, **kw)}"
 
     def visit_match_op_binary(self, binary, operator, **kw):
-        return "CONTAINS (%s, %s)" % (
-            self.process(binary.left),
-            self.process(binary.right),
-        )
+        return f"CONTAINS ({self.process(binary.left)}, {self.process(binary.right)})"
 
     def visit_true(self, expr, **kw):
         return "1"
@@ -847,7 +841,7 @@ class OracleCompiler(compiler.SQLCompiler):
         return "WITH"
 
     def get_select_hint_text(self, byfroms):
-        return " ".join("/*+ %s */" % text for table, text in byfroms.items())
+        return " ".join(f"/*+ {text} */" for table, text in byfroms.items())
 
     def function_argspec(self, fn, **kw):
         if len(fn.clauses) > 0 or fn.name.upper() not in NO_ARG_FNS:
@@ -858,12 +852,12 @@ class OracleCompiler(compiler.SQLCompiler):
     def visit_function(self, func, **kw):
         text = super().visit_function(func, **kw)
         if kw.get("asfrom", False):
-            text = "TABLE (%s)" % text
+            text = f"TABLE ({text})"
         return text
 
     def visit_table_valued_column(self, element, **kw):
         text = super().visit_table_valued_column(element, **kw)
-        text = text + ".COLUMN_VALUE"
+        text = f"{text}.COLUMN_VALUE"
         return text
 
     def default_from(self):
@@ -880,20 +874,16 @@ class OracleCompiler(compiler.SQLCompiler):
             return compiler.SQLCompiler.visit_join(
                 self, join, from_linter=from_linter, **kwargs
             )
-        else:
-            if from_linter:
-                from_linter.edges.add((join.left, join.right))
+        if from_linter:
+            from_linter.edges.add((join.left, join.right))
 
-            kwargs["asfrom"] = True
-            if isinstance(join.right, expression.FromGrouping):
-                right = join.right.element
-            else:
-                right = join.right
-            return (
-                self.process(join.left, from_linter=from_linter, **kwargs)
-                + ", "
-                + self.process(right, from_linter=from_linter, **kwargs)
-            )
+        kwargs["asfrom"] = True
+        right = (
+            join.right.element
+            if isinstance(join.right, expression.FromGrouping)
+            else join.right
+        )
+        return f"{self.process(join.left, from_linter=from_linter, **kwargs)}, {self.process(right, from_linter=from_linter, **kwargs)}"
 
     def _get_nonansi_join_whereclause(self, froms):
         clauses = []
@@ -932,21 +922,18 @@ class OracleCompiler(compiler.SQLCompiler):
             if isinstance(f, expression.Join):
                 visit_join(f)
 
-        if not clauses:
-            return None
-        else:
-            return sql.and_(*clauses)
+        return sql.and_(*clauses) if clauses else None
 
     def visit_outer_join_column(self, vc, **kw):
-        return self.process(vc.column, **kw) + "(+)"
+        return f"{self.process(vc.column, **kw)}(+)"
 
     def visit_sequence(self, seq, **kw):
-        return self.preparer.format_sequence(seq) + ".nextval"
+        return f"{self.preparer.format_sequence(seq)}.nextval"
 
     def get_render_as_alias_suffix(self, alias_name_text):
         """Oracle doesn't like ``FROM table AS alias``"""
 
-        return " " + alias_name_text
+        return f" {alias_name_text}"
 
     def returning_clause(
         self, stmt, returning_cols, *, populate_result_map, **kw
@@ -1129,14 +1116,12 @@ class OracleCompiler(compiler.SQLCompiler):
                     ):
                         max_row = limit_clause
 
-                        if offset_clause is not None:
-                            max_row = max_row + offset_clause
-
                     else:
                         max_row = limit_clause
 
-                        if offset_clause is not None:
-                            max_row = max_row + offset_clause
+                    if offset_clause is not None:
+                        max_row = max_row + offset_clause
+
                     limitselect = limitselect.where(
                         sql.literal_column("ROWNUM") <= max_row
                     )
@@ -1215,23 +1200,17 @@ class OracleCompiler(compiler.SQLCompiler):
         return tmp
 
     def visit_is_distinct_from_binary(self, binary, operator, **kw):
-        return "DECODE(%s, %s, 0, 1) = 1" % (
-            self.process(binary.left),
-            self.process(binary.right),
-        )
+        return f"DECODE({self.process(binary.left)}, {self.process(binary.right)}, 0, 1) = 1"
 
     def visit_is_not_distinct_from_binary(self, binary, operator, **kw):
-        return "DECODE(%s, %s, 0, 1) = 0" % (
-            self.process(binary.left),
-            self.process(binary.right),
-        )
+        return f"DECODE({self.process(binary.left)}, {self.process(binary.right)}, 0, 1) = 0"
 
     def visit_regexp_match_op_binary(self, binary, operator, **kw):
         string = self.process(binary.left, **kw)
         pattern = self.process(binary.right, **kw)
         flags = binary.modifiers["flags"]
         if flags is None:
-            return "REGEXP_LIKE(%s, %s)" % (string, pattern)
+            return f"REGEXP_LIKE({string}, {pattern})"
         else:
             return "REGEXP_LIKE(%s, %s, %s)" % (
                 string,
@@ -1250,11 +1229,7 @@ class OracleCompiler(compiler.SQLCompiler):
         replacement = self.process(binary.modifiers["replacement"], **kw)
         flags = binary.modifiers["flags"]
         if flags is None:
-            return "REGEXP_REPLACE(%s, %s, %s)" % (
-                string,
-                pattern,
-                replacement,
-            )
+            return f"REGEXP_REPLACE({string}, {pattern}, {replacement})"
         else:
             return "REGEXP_REPLACE(%s, %s, %s, %s)" % (
                 string,
@@ -1268,7 +1243,7 @@ class OracleDDLCompiler(compiler.DDLCompiler):
     def define_constraint_cascades(self, constraint):
         text = ""
         if constraint.ondelete is not None:
-            text += " ON DELETE %s" % constraint.ondelete
+            text += f" ON DELETE {constraint.ondelete}"
 
         # oracle has no ON UPDATE CASCADE -
         # its only available via triggers
@@ -1358,13 +1333,12 @@ class OracleDDLCompiler(compiler.DDLCompiler):
             kind = ""
         else:
             kind = "ALWAYS" if identity.always else "BY DEFAULT"
-        text = "GENERATED %s" % kind
+        text = f"GENERATED {kind}"
         if identity.on_null:
             text += " ON NULL"
         text += " AS IDENTITY"
-        options = self.get_identity_options(identity)
-        if options:
-            text += " (%s)" % options
+        if options := self.get_identity_options(identity):
+            text += f" ({options})"
         return text
 
 
@@ -1518,12 +1492,11 @@ class OracleDialect(default.DefaultDialect):
         except exc.DBAPIError:
             compat = None
 
-        if compat:
-            try:
-                return tuple(int(x) for x in compat.split("."))
-            except:
-                return self.server_version_info
-        else:
+        if not compat:
+            return self.server_version_info
+        try:
+            return tuple(int(x) for x in compat.split("."))
+        except:
             return self.server_version_info
 
     @property
@@ -1622,11 +1595,10 @@ class OracleDialect(default.DefaultDialect):
             .subquery("tables_and_views")
         )
 
-        query = select(tables.c.table_name).where(
+        return select(tables.c.table_name).where(
             tables.c.table_name == bindparam("table_name"),
             tables.c.owner == bindparam("owner"),
         )
-        return query
 
     @reflection.cache
     def has_table(
@@ -1795,11 +1767,9 @@ class OracleDialect(default.DefaultDialect):
             ObjectKind.TABLE in kind
             and ObjectKind.MATERIALIZED_VIEW not in kind
         ):
-            # see note in _all_objects_query
-            mat_views = self.get_materialized_view_names(
+            if mat_views := self.get_materialized_view_names(
                 connection, schema, dblink, _normalize=False, **kw
-            )
-            if mat_views:
+            ):
                 params["mat_views"] = mat_views
                 has_mat_views = True
 
@@ -2120,11 +2090,9 @@ class OracleDialect(default.DefaultDialect):
             ObjectKind.TABLE in kind
             and ObjectKind.MATERIALIZED_VIEW not in kind
         ):
-            # see note in _table_options_query
-            mat_views = self.get_materialized_view_names(
+            if mat_views := self.get_materialized_view_names(
                 connection, schema, dblink, _normalize=False, **kw
-            )
-            if mat_views:
+            ):
                 params["mat_views"] = mat_views
                 has_mat_views = True
         elif (
@@ -2183,8 +2151,8 @@ class OracleDialect(default.DefaultDialect):
         each_batch = 500
         batches = list(all_objects)
         while batches:
-            batch = batches[0:each_batch]
-            batches[0:each_batch] = []
+            batch = batches[:each_batch]
+            batches[:each_batch] = []
 
             result = self._execute_reflection(
                 connection,
@@ -2200,20 +2168,15 @@ class OracleDialect(default.DefaultDialect):
 
     @lru_cache()
     def _column_query(self, owner):
-        all_cols = dictionary.all_tab_cols
         all_comments = dictionary.all_col_comments
         all_ids = dictionary.all_tab_identity_cols
 
+        all_cols = dictionary.all_tab_cols
         if self.server_version_info >= (12,):
-            add_cols = (
-                all_cols.c.default_on_null,
-                sql.case(
-                    (all_ids.c.table_name.is_(None), sql.null()),
-                    else_=all_ids.c.generation_type
-                    + ","
-                    + all_ids.c.identity_options,
-                ).label("identity_options"),
-            )
+            add_cols = all_cols.c.default_on_null, sql.case(
+                (all_ids.c.table_name.is_(None), sql.null()),
+                else_=f"{all_ids.c.generation_type},{all_ids.c.identity_options}",
+            ).label("identity_options")
             join_identity_cols = True
         else:
             add_cols = (
@@ -2315,10 +2278,7 @@ class OracleDialect(default.DefaultDialect):
         )
 
         def maybe_int(value):
-            if isinstance(value, float) and value.is_integer():
-                return int(value)
-            else:
-                return value
+            return int(value) if isinstance(value, float) and value.is_integer() else value
 
         for row_dict in result:
             table_name = self.normalize_name(row_dict["table_name"])
@@ -2359,10 +2319,7 @@ class OracleDialect(default.DefaultDialect):
                 try:
                     coltype = self.ischema_names[coltype]
                 except KeyError:
-                    util.warn(
-                        "Did not recognize type '%s' of column '%s'"
-                        % (coltype, colname)
-                    )
+                    util.warn(f"Did not recognize type '{coltype}' of column '{colname}'")
                     coltype = sqltypes.NULLTYPE
 
             default = row_dict["data_default"]
@@ -2782,8 +2739,7 @@ class OracleDialect(default.DefaultDialect):
         )
         query = self._constraint_query(owner)
 
-        # since the result is cached a list must be created
-        values = list(
+        return list(
             self._run_batches(
                 connection,
                 query,
@@ -2793,7 +2749,6 @@ class OracleDialect(default.DefaultDialect):
                 all_objects=all_objects,
             )
         )
-        return values
 
     @_handle_synonyms_decorator
     def get_multi_pk_constraint(
@@ -2826,13 +2781,12 @@ class OracleDialect(default.DefaultDialect):
             constraint_name = self.normalize_name(row_dict["constraint_name"])
             column_name = self.normalize_name(row_dict["local_column"])
 
-            table_pk = primary_keys[(schema, table_name)]
-            if not table_pk:
-                table_pk["name"] = constraint_name
-                table_pk["constrained_columns"] = [column_name]
-            else:
+            if table_pk := primary_keys[(schema, table_name)]:
                 table_pk["constrained_columns"].append(column_name)
 
+            else:
+                table_pk["name"] = constraint_name
+                table_pk["constrained_columns"] = [column_name]
         return (
             (key, primary_keys[key] if key in primary_keys else default())
             for key in (
@@ -3095,10 +3049,9 @@ class OracleDialect(default.DefaultDialect):
         ``oracle_resolve_synonyms`` to resolve names to synonyms
         """
         if kw.get("oracle_resolve_synonyms", False):
-            synonyms = self._get_synonyms(
+            if synonyms := self._get_synonyms(
                 connection, schema, filter_names=[view_name], dblink=dblink
-            )
-            if synonyms:
+            ):
                 assert len(synonyms) == 1
                 row_dict = synonyms[0]
                 dblink = self.normalize_name(row_dict["db_link"])

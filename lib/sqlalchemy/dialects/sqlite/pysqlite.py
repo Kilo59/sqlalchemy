@@ -471,10 +471,7 @@ class _SQLite_pysqliteTimeStamp(DATETIME):
 
 class _SQLite_pysqliteDate(DATE):
     def bind_processor(self, dialect):
-        if dialect.native_datetime:
-            return None
-        else:
-            return DATE.bind_processor(self, dialect)
+        return None if dialect.native_datetime else DATE.bind_processor(self, dialect)
 
     def result_processor(self, dialect, coltype):
         if dialect.native_datetime:
@@ -507,19 +504,14 @@ class SQLiteDialect_pysqlite(SQLiteDialect):
 
     @classmethod
     def _is_url_file_db(cls, url):
-        if (url.database and url.database != ":memory:") and (
-            url.query.get("mode", None) != "memory"
-        ):
-            return True
-        else:
-            return False
+        return bool(
+            (url.database and url.database != ":memory:")
+            and (url.query.get("mode", None) != "memory")
+        )
 
     @classmethod
     def get_pool_class(cls, url):
-        if cls._is_url_file_db(url):
-            return pool.QueuePool
-        else:
-            return pool.SingletonThreadPool
+        return pool.QueuePool if cls._is_url_file_db(url) else pool.SingletonThreadPool
 
     def _get_server_version_info(self, connection):
         return self.dbapi.sqlite_version_info
@@ -540,9 +532,7 @@ class SQLiteDialect_pysqlite(SQLiteDialect):
 
     def on_connect(self):
         def regexp(a, b):
-            if b is None:
-                return None
-            return re.search(a, b) is not None
+            return None if b is None else re.search(a, b) is not None
 
         if util.py38 and self._get_server_version_info(None) >= (3, 9):
             # sqlite must be greater than 3.8.3 for deterministic=True
@@ -620,11 +610,8 @@ class SQLiteDialect_pysqlite(SQLiteDialect):
             filename = url.database
             if uri_opts:
                 # sorting of keys is for unit test support
-                filename += "?" + (
-                    "&".join(
-                        "%s=%s" % (key, uri_opts[key])
-                        for key in sorted(uri_opts)
-                    )
+                filename += "?" + "&".join(
+                    f"{key}={uri_opts[key]}" for key in sorted(uri_opts)
                 )
         else:
             filename = url.database or ":memory:"

@@ -272,7 +272,7 @@ def __go(lcls: Any) -> None:
 
     from . import exc
 
-    exc._version_token = "".join(__version__.split(".")[0:2])
+    exc._version_token = "".join(__version__.split(".")[:2])
 
 
 __go(locals())

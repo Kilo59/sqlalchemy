@@ -683,7 +683,7 @@ class CHAR(_StringType, sqltypes.CHAR):
         super().__init__(length=length, **kwargs)
 
     @classmethod
-    def _adapt_string_for_cast(self, type_):
+    def _adapt_string_for_cast(cls, type_):
         # copy the given string type into a CHAR
         # for the purposes of rendering a CAST expression
         type_ = sqltypes.to_instance(type_)

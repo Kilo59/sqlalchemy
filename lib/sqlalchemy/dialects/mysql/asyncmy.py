@@ -126,16 +126,13 @@ class AsyncAdapt_asyncmy_cursor:
             yield self._rows.pop(0)
 
     def fetchone(self):
-        if self._rows:
-            return self._rows.pop(0)
-        else:
-            return None
+        return self._rows.pop(0) if self._rows else None
 
     def fetchmany(self, size=None):
         if size is None:
             size = self.arraysize
 
-        retval = self._rows[0:size]
+        retval = self._rows[:size]
         self._rows[:] = self._rows[size:]
         return retval
 
@@ -311,11 +308,10 @@ class MySQLDialect_asyncmy(MySQLDialect_pymysql):
     def is_disconnect(self, e, connection, cursor):
         if super().is_disconnect(e, connection, cursor):
             return True
-        else:
-            str_e = str(e).lower()
-            return (
-                "not connected" in str_e or "network operation failed" in str_e
-            )
+        str_e = str(e).lower()
+        return (
+            "not connected" in str_e or "network operation failed" in str_e
+        )
 
     def _found_rows_client_flag(self):
         from asyncmy.constants import CLIENT

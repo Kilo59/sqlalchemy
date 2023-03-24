@@ -175,16 +175,13 @@ class Connection(ConnectionEventsTarget, inspection.Inspectable["Inspector"]):
 
     @util.memoized_property
     def _message_formatter(self) -> Any:
-        if "logging_token" in self._execution_options:
-            token = self._execution_options["logging_token"]
-            return lambda msg: "[%s] %s" % (token, msg)
-        else:
+        if "logging_token" not in self._execution_options:
             return None
+        token = self._execution_options["logging_token"]
+        return lambda msg: f"[{token}] {msg}"
 
     def _log_info(self, message: str, *arg: Any, **kw: Any) -> None:
-        fmt = self._message_formatter
-
-        if fmt:
+        if fmt := self._message_formatter:
             message = fmt(message)
 
         if log.STACKLEVEL:
@@ -193,9 +190,7 @@ class Connection(ConnectionEventsTarget, inspection.Inspectable["Inspector"]):
         self.engine.logger.info(message, *arg, **kw)
 
     def _log_debug(self, message: str, *arg: Any, **kw: Any) -> None:
-        fmt = self._message_formatter
-
-        if fmt:
+        if fmt := self._message_formatter:
             message = fmt(message)
 
         if log.STACKLEVEL:
@@ -570,15 +565,14 @@ class Connection(ConnectionEventsTarget, inspection.Inspectable["Inspector"]):
 
         """
 
-        if self._dbapi_connection is None:
-            try:
-                return self._revalidate_connection()
-            except (exc.PendingRollbackError, exc.ResourceClosedError):
-                raise
-            except BaseException as e:
-                self._handle_dbapi_exception(e, None, None, None, None)
-        else:
+        if self._dbapi_connection is not None:
             return self._dbapi_connection
+        try:
+            return self._revalidate_connection()
+        except (exc.PendingRollbackError, exc.ResourceClosedError):
+            raise
+        except BaseException as e:
+            self._handle_dbapi_exception(e, None, None, None, None)
 
     def get_isolation_level(self) -> IsolationLevel:
         """Return the current isolation level assigned to this
@@ -846,16 +840,15 @@ class Connection(ConnectionEventsTarget, inspection.Inspectable["Inspector"]):
             :class:`_engine.Engine`
 
         """
-        if self._transaction is None:
-            self._transaction = RootTransaction(self)
-            return self._transaction
-        else:
+        if self._transaction is not None:
             raise exc.InvalidRequestError(
                 "This connection has already initialized a SQLAlchemy "
                 "Transaction() object via begin() or autobegin; can't "
                 "call begin() here unless rollback() or commit() "
                 "is called first."
             )
+        self._transaction = RootTransaction(self)
+        return self._transaction
 
     def begin_nested(self) -> NestedTransaction:
         """Begin a nested transaction (i.e. SAVEPOINT) and return a transaction
@@ -1037,13 +1030,9 @@ class Connection(ConnectionEventsTarget, inspection.Inspectable["Inspector"]):
 
     def _is_autocommit_isolation(self) -> bool:
         opt_iso = self._execution_options.get("isolation_level", None)
-        return bool(
-            opt_iso == "AUTOCOMMIT"
-            or (
-                opt_iso is None
-                and self.engine.dialect._on_connect_isolation_level
-                == "AUTOCOMMIT"
-            )
+        return opt_iso == "AUTOCOMMIT" or (
+            opt_iso is None
+            and self.engine.dialect._on_connect_isolation_level == "AUTOCOMMIT"
         )
 
     def _get_required_transaction(self) -> RootTransaction:
@@ -1141,7 +1130,7 @@ class Connection(ConnectionEventsTarget, inspection.Inspectable["Inspector"]):
 
         if name is None:
             self.__savepoint_seq += 1
-            name = "sa_savepoint_%s" % self.__savepoint_seq
+            name = f"sa_savepoint_{self.__savepoint_seq}"
         self.engine.dialect.do_savepoint(self, name)
         return name
 
@@ -1769,7 +1758,7 @@ class Connection(ConnectionEventsTarget, inspection.Inspectable["Inspector"]):
         )
 
         dialect = self.dialect
-        ret = self._execute_context(
+        return self._execute_context(
             dialect,
             dialect.execution_ctx_cls._init_statement,
             statement,
@@ -1778,8 +1767,6 @@ class Connection(ConnectionEventsTarget, inspection.Inspectable["Inspector"]):
             statement,
             distilled_parameters,
         )
-
-        return ret
 
     def _execute_context(
         self,
@@ -1795,8 +1782,7 @@ class Connection(ConnectionEventsTarget, inspection.Inspectable["Inspector"]):
         a :class:`_engine.CursorResult`."""
 
         if execution_options:
-            yp = execution_options.get("yield_per", None)
-            if yp:
+            if yp := execution_options.get("yield_per", None):
                 execution_options = execution_options.union(
                     {"stream_results": True, "max_row_buffer": yp}
                 )
@@ -1854,10 +1840,8 @@ class Connection(ConnectionEventsTarget, inspection.Inspectable["Inspector"]):
         cursor.execute() or cursor.executemany() call.
 
         """
-        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
-            generic_setinputsizes = context._prepare_set_input_sizes()
-
-            if generic_setinputsizes:
+        if generic_setinputsizes := context._prepare_set_input_sizes():
+            if dialect.bind_typing is BindTyping.SETINPUTSIZES:
                 try:
                     dialect.do_set_input_sizes(
                         context.cursor, generic_setinputsizes, context
@@ -1875,11 +1859,7 @@ class Connection(ConnectionEventsTarget, inspection.Inspectable["Inspector"]):
 
         effective_parameters: Optional[_AnyExecuteParams]
 
-        if not context.executemany:
-            effective_parameters = parameters[0]
-        else:
-            effective_parameters = parameters
-
+        effective_parameters = parameters if context.executemany else parameters[0]
         if self._has_events or self.engine._has_events:
             for fn in self.dispatch.before_cursor_execute:
                 str_statement, effective_parameters = fn(
@@ -2020,7 +2000,7 @@ class Connection(ConnectionEventsTarget, inspection.Inspectable["Inspector"]):
             do_execute_dispatch = ()
 
         if self._echo:
-            stats = context._get_cache_stats() + " (insertmanyvalues)"
+            stats = f"{context._get_cache_stats()} (insertmanyvalues)"
         for (
             sub_stmt,
             sub_params,
@@ -2158,11 +2138,7 @@ class Connection(ConnectionEventsTarget, inspection.Inspectable["Inspector"]):
             self._log_info(statement)
             self._log_info("[raw sql] %r", parameters)
         try:
-            for fn in (
-                ()
-                if not self.dialect._has_events
-                else self.dialect.dispatch.do_execute
-            ):
+            for fn in self.dialect.dispatch.do_execute if self.dialect._has_events else ():
                 if fn(cursor, statement, parameters, context):
                     break
             else:
@@ -2211,11 +2187,10 @@ class Connection(ConnectionEventsTarget, inspection.Inspectable["Inspector"]):
                 isinstance(e, self.dialect.loaded_dbapi.Error)
                 and not self.closed
                 and self.dialect.is_disconnect(
-                    e,
-                    self._dbapi_connection if not self.invalidated else None,
-                    cursor,
+                    e, None if self.invalidated else self._dbapi_connection, cursor
                 )
-            ) or (is_exit_exception and not self.closed)
+                or (is_exit_exception and not self.closed)
+            )
 
         invalidate_pool_on_disconnect = not is_exit_exception
 
@@ -2718,11 +2693,10 @@ class RootTransaction(Transaction):
             # if commit succeeded.  otherwise it stays on so that a rollback
             # needs to occur.
             self.connection._transaction = None
+        elif self.connection._transaction is self:
+            self.connection._invalid_transaction()
         else:
-            if self.connection._transaction is self:
-                self.connection._invalid_transaction()
-            else:
-                raise exc.InvalidRequestError("This transaction is inactive")
+            raise exc.InvalidRequestError("This transaction is inactive")
 
         assert not self.is_active
         assert self.connection._transaction is not self
@@ -2833,13 +2807,12 @@ class NestedTransaction(Transaction):
 
             # but only de-associate from connection if it succeeded
             self._deactivate_from_connection()
+        elif self.connection._nested_transaction is self:
+            self.connection._invalid_transaction()
         else:
-            if self.connection._nested_transaction is self:
-                self.connection._invalid_transaction()
-            else:
-                raise exc.InvalidRequestError(
-                    "This nested transaction is inactive"
-                )
+            raise exc.InvalidRequestError(
+                "This nested transaction is inactive"
+            )
 
 
 class TwoPhaseTransaction(RootTransaction):

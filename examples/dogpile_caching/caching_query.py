@@ -145,11 +145,9 @@ class FromCache(UserDefinedOption):
         """
         statement_cache_key = statement._generate_cache_key()
 
-        key = statement_cache_key.to_offline_string(
+        return statement_cache_key.to_offline_string(
             orm_cache._statement_cache, statement, parameters
         ) + repr(self.cache_key)
-        # print("here's our key...%s" % key)
-        return key
 
 
 class RelationshipCache(FromCache):
@@ -188,18 +186,13 @@ class RelationshipCache(FromCache):
         }
 
     def _process_orm_context(self, orm_context):
-        current_path = orm_context.loader_strategy_path
-
-        if current_path:
+        if current_path := orm_context.loader_strategy_path:
             mapper, prop = current_path[-2:]
             key = prop.key
 
             for cls in mapper.class_.__mro__:
                 if (cls, key) in self._relationship_options:
-                    relationship_option = self._relationship_options[
-                        (cls, key)
-                    ]
-                    return relationship_option
+                    return self._relationship_options[(cls, key)]
 
     def and_(self, option):
         """Chain another RelationshipCache option to this one.

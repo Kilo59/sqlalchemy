@@ -226,12 +226,7 @@ class BIT(sqltypes.TypeEngine[int]):
     __visit_name__ = "BIT"
 
     def __init__(self, length=None, varying=False):
-        if not varying:
-            # BIT without VARYING defaults to length 1
-            self.length = length or 1
-        else:
-            # but BIT VARYING can be unlimited-length, so no default
-            self.length = length
+        self.length = length if varying else length or 1
         self.varying = varying
 
 

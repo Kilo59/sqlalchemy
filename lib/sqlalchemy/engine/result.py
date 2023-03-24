@@ -166,10 +166,7 @@ class ResultMetaData:
 
         index = self._index_for_key(key, raiseerr)
 
-        if index is not None:
-            return operator.itemgetter(index)
-        else:
-            return None
+        return operator.itemgetter(index) if index is not None else None
 
     def _row_as_tuple_getter(
         self, keys: Sequence[_KeyIndexType]
@@ -198,12 +195,7 @@ class RMKeyView(typing.KeysView[Any]):
         return iter(self._keys)
 
     def __contains__(self, item: Any) -> bool:
-        if isinstance(item, int):
-            return False
-
-        # note this also includes special key fallback behaviors
-        # which also don't seem to be tested in test_resultset right now
-        return self._parent._has_key(item)
+        return False if isinstance(item, int) else self._parent._has_key(item)
 
     def __eq__(self, other: Any) -> bool:
         return list(other) == list(self)
@@ -241,10 +233,7 @@ class SimpleResultMetaData(ResultMetaData):
         self._unique_filters = _unique_filters
         if extra:
             recs_names = [
-                (
-                    (name,) + (extras if extras else ()),
-                    (index, name, extras),
-                )
+                ((name,) + (extras or ()), (index, name, extras))
                 for index, (name, extras) in enumerate(zip(self._keys, extra))
             ]
         else:
@@ -342,7 +331,7 @@ class SimpleResultMetaData(ResultMetaData):
 
         tup = tuplegetter(*indexes)
 
-        new_metadata = SimpleResultMetaData(
+        return SimpleResultMetaData(
             new_keys,
             extra=extra,
             _tuplefilter=tup,
@@ -350,8 +339,6 @@ class SimpleResultMetaData(ResultMetaData):
             _processors=self._processors,
             _unique_filters=self._unique_filters,
         )
-
-        return new_metadata
 
 
 def result_tuple(
@@ -409,28 +396,23 @@ class ResultInternal(InPlaceGenerative, Generic[_R]):
 
     @HasMemoized_ro_memoized_attribute
     def _row_getter(self) -> Optional[Callable[..., _R]]:
-        real_result: Result[Any] = (
-            self._real_result
-            if self._real_result
-            else cast("Result[Any]", self)
-        )
+        real_result: Result[Any] = self._real_result or cast("Result[Any]", self)
 
         if real_result._source_supports_scalars:
             if not self._generate_rows:
                 return None
-            else:
-                _proc = Row
+            _proc = Row
 
-                def process_row(  # type: ignore
-                    metadata: ResultMetaData,
-                    processors: _ProcessorsType,
-                    keymap: _KeyMapType,
-                    key_style: Any,
-                    scalar_obj: Any,
-                ) -> Row[Any]:
-                    return _proc(
-                        metadata, processors, keymap, key_style, (scalar_obj,)
-                    )
+            def process_row(  # type: ignore
+                metadata: ResultMetaData,
+                processors: _ProcessorsType,
+                keymap: _KeyMapType,
+                key_style: Any,
+                scalar_obj: Any,
+            ) -> Row[Any]:
+                return _proc(
+                    metadata, processors, keymap, key_style, (scalar_obj,)
+                )
 
         else:
             process_row = Row  # type: ignore
@@ -462,11 +444,7 @@ class ResultInternal(InPlaceGenerative, Generic[_R]):
 
         fns: Tuple[Any, ...] = ()
 
-        if real_result._row_logging_fn:
-            fns = (real_result._row_logging_fn,)
-        else:
-            fns = ()
-
+        fns = (real_result._row_logging_fn, ) if real_result._row_logging_fn else ()
         if fns:
             _make_row = make_row
 
@@ -528,11 +506,7 @@ class ResultInternal(InPlaceGenerative, Generic[_R]):
 
         rows = self._fetchall_impl()
         made_rows: List[_InterimRowType[_R]]
-        if make_row:
-            made_rows = [make_row(row) for row in rows]
-        else:
-            made_rows = rows  # type: ignore
-
+        made_rows = [make_row(row) for row in rows] if make_row else rows
         interim_rows: List[_R]
 
         if self._unique_filter_state:
@@ -575,18 +549,17 @@ class ResultInternal(InPlaceGenerative, Generic[_R]):
                     row = _onerow()
                     if row is None:
                         return _NO_ROW
+                    obj: _InterimRowType[Any] = (
+                        make_row(row) if make_row else row
+                    )
+                    hashed = strategy(obj) if strategy else obj
+                    if hashed in uniques:
+                        continue
                     else:
-                        obj: _InterimRowType[Any] = (
-                            make_row(row) if make_row else row
-                        )
-                        hashed = strategy(obj) if strategy else obj
-                        if hashed in uniques:
-                            continue
-                        else:
-                            uniques.add(hashed)
-                        if post_creational_filter:
-                            obj = post_creational_filter(obj)
-                        return obj  # type: ignore
+                        uniques.add(hashed)
+                    if post_creational_filter:
+                        obj = post_creational_filter(obj)
+                    return obj  # type: ignore
 
         else:
 
@@ -594,13 +567,12 @@ class ResultInternal(InPlaceGenerative, Generic[_R]):
                 row = self._fetchone_impl()
                 if row is None:
                     return _NO_ROW
-                else:
-                    interim_row: _InterimRowType[Any] = (
-                        make_row(row) if make_row else row
-                    )
-                    if post_creational_filter:
-                        interim_row = post_creational_filter(interim_row)
-                    return interim_row  # type: ignore
+                interim_row: _InterimRowType[Any] = (
+                    make_row(row) if make_row else row
+                )
+                if post_creational_filter:
+                    interim_row = post_creational_filter(interim_row)
+                return interim_row  # type: ignore
 
         return onerow
 
@@ -635,8 +607,8 @@ class ResultInternal(InPlaceGenerative, Generic[_R]):
                 ]
 
             def manyrows(
-                self: ResultInternal[_R], num: Optional[int]
-            ) -> List[_R]:
+                        self: ResultInternal[_R], num: Optional[int]
+                    ) -> List[_R]:
                 collect: List[_R] = []
 
                 _manyrows = self._fetchmany_impl
@@ -647,11 +619,7 @@ class ResultInternal(InPlaceGenerative, Generic[_R]):
                     # different DBAPIs / fetch strategies may be different.
                     # do a fetch to find what the number is.  if there are
                     # only fewer rows left, then it doesn't matter.
-                    real_result = (
-                        self._real_result
-                        if self._real_result
-                        else cast("Result[Any]", self)
-                    )
+                    real_result = self._real_result or cast("Result[Any]", self)
                     if real_result._yield_per:
                         num_required = num = real_result._yield_per
                     else:
@@ -684,14 +652,10 @@ class ResultInternal(InPlaceGenerative, Generic[_R]):
         else:
 
             def manyrows(
-                self: ResultInternal[_R], num: Optional[int]
-            ) -> List[_R]:
+                        self: ResultInternal[_R], num: Optional[int]
+                    ) -> List[_R]:
                 if num is None:
-                    real_result = (
-                        self._real_result
-                        if self._real_result
-                        else cast("Result[Any]", self)
-                    )
+                    real_result = self._real_result or cast("Result[Any]", self)
                     num = real_result._yield_per
 
                 rows: List[_InterimRowType[Any]] = self._fetchmany_impl(num)
@@ -798,14 +762,10 @@ class ResultInternal(InPlaceGenerative, Generic[_R]):
             self._soft_close(hard=True)
 
         if not scalar:
-            post_creational_filter = self._post_creational_filter
-            if post_creational_filter:
+            if post_creational_filter := self._post_creational_filter:
                 row = post_creational_filter(row)
 
-        if scalar and make_row:
-            return row[0]  # type: ignore
-        else:
-            return row  # type: ignore
+        return row[0] if scalar and make_row else row
 
     def _iter_impl(self) -> Iterator[_R]:
         return self._iterator_getter(self)
@@ -819,11 +779,7 @@ class ResultInternal(InPlaceGenerative, Generic[_R]):
 
     @_generative
     def _column_slices(self, indexes: Sequence[_KeyIndexType]) -> Self:
-        real_result = (
-            self._real_result
-            if self._real_result
-            else cast("Result[Any]", self)
-        )
+        real_result = self._real_result or cast("Result[Any]", self)
 
         if not real_result._source_supports_scalars or len(indexes) != 1:
             self._metadata = self._metadata._reduce(indexes)
@@ -1291,8 +1247,7 @@ class Result(_WithKeys, ResultInternal[Row[_TP]]):
         getter = self._manyrow_getter
 
         while True:
-            partition = getter(self, size)
-            if partition:
+            if partition := getter(self, size):
                 yield partition
             else:
                 break
@@ -1319,10 +1274,7 @@ class Result(_WithKeys, ResultInternal[Row[_TP]]):
 
         """
         row = self._onerow_getter(self)
-        if row is _NO_ROW:
-            return None
-        else:
-            return row
+        return None if row is _NO_ROW else row
 
     def fetchmany(self, size: Optional[int] = None) -> Sequence[Row[_TP]]:
         """Fetch many rows.
@@ -1724,8 +1676,7 @@ class ScalarResult(FilterResult[_R]):
         getter = self._manyrow_getter
 
         while True:
-            partition = getter(self, size)
-            if partition:
+            if partition := getter(self, size):
                 yield partition
             else:
                 break
@@ -2018,8 +1969,7 @@ class MappingResult(_WithKeys, FilterResult[RowMapping]):
         getter = self._manyrow_getter
 
         while True:
-            partition = getter(self, size)
-            if partition:
+            if partition := getter(self, size):
                 yield partition
             else:
                 break
@@ -2039,10 +1989,7 @@ class MappingResult(_WithKeys, FilterResult[RowMapping]):
         """
 
         row = self._onerow_getter(self)
-        if row is _NO_ROW:
-            return None
-        else:
-            return row
+        return None if row is _NO_ROW else row
 
     def fetchmany(self, size: Optional[int] = None) -> Sequence[RowMapping]:
         """Fetch many objects.
@@ -2250,11 +2197,10 @@ class IteratorResult(Result[_TP]):
             self._raise_hard_closed()
 
         row = next(self.iterator, _NO_ROW)
-        if row is _NO_ROW:
-            self._soft_close(hard=hard_close)
-            return None
-        else:
+        if row is not _NO_ROW:
             return row
+        self._soft_close(hard=hard_close)
+        return None
 
     def _fetchall_impl(self) -> List[_InterimRowType[Row[Any]]]:
         if self._hard_closed:

@@ -191,10 +191,7 @@ def execute_chooser(context):
             elif operator == operators.in_op:
                 ids.extend(shard_lookup[v] for v in value)
 
-    if len(ids) == 0:
-        return ["north_america", "asia", "europe", "south_america"]
-    else:
-        return ids
+    return ids or ["north_america", "asia", "europe", "south_america"]
 
 
 def _get_select_comparisons(statement):

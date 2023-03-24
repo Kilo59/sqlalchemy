@@ -131,16 +131,13 @@ class AsyncAdapt_aiosqlite_cursor:
             yield self._rows.pop(0)
 
     def fetchone(self):
-        if self._rows:
-            return self._rows.pop(0)
-        else:
-            return None
+        return self._rows.pop(0) if self._rows else None
 
     def fetchmany(self, size=None):
         if size is None:
             size = self.arraysize
 
-        retval = self._rows[0:size]
+        retval = self._rows[:size]
         self._rows[:] = self._rows[size:]
         return retval
 
@@ -329,10 +326,7 @@ class SQLiteDialect_aiosqlite(SQLiteDialect_pysqlite):
 
     @classmethod
     def get_pool_class(cls, url):
-        if cls._is_url_file_db(url):
-            return pool.NullPool
-        else:
-            return pool.StaticPool
+        return pool.NullPool if cls._is_url_file_db(url) else pool.StaticPool
 
     def is_disconnect(self, e, connection, cursor):
         if isinstance(
