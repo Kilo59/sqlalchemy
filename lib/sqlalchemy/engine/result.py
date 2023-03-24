@@ -396,7 +396,9 @@ class ResultInternal(InPlaceGenerative, Generic[_R]):
 
     @HasMemoized_ro_memoized_attribute
     def _row_getter(self) -> Optional[Callable[..., _R]]:
-        real_result: Result[Any] = self._real_result or cast("Result[Any]", self)
+        real_result: Result[Any] = self._real_result or cast(
+            "Result[Any]", self
+        )
 
         if real_result._source_supports_scalars:
             if not self._generate_rows:
@@ -444,7 +446,11 @@ class ResultInternal(InPlaceGenerative, Generic[_R]):
 
         fns: Tuple[Any, ...] = ()
 
-        fns = (real_result._row_logging_fn, ) if real_result._row_logging_fn else ()
+        fns = (
+            (real_result._row_logging_fn,)
+            if real_result._row_logging_fn
+            else ()
+        )
         if fns:
             _make_row = make_row
 
@@ -607,8 +613,8 @@ class ResultInternal(InPlaceGenerative, Generic[_R]):
                 ]
 
             def manyrows(
-                        self: ResultInternal[_R], num: Optional[int]
-                    ) -> List[_R]:
+                self: ResultInternal[_R], num: Optional[int]
+            ) -> List[_R]:
                 collect: List[_R] = []
 
                 _manyrows = self._fetchmany_impl
@@ -619,7 +625,9 @@ class ResultInternal(InPlaceGenerative, Generic[_R]):
                     # different DBAPIs / fetch strategies may be different.
                     # do a fetch to find what the number is.  if there are
                     # only fewer rows left, then it doesn't matter.
-                    real_result = self._real_result or cast("Result[Any]", self)
+                    real_result = self._real_result or cast(
+                        "Result[Any]", self
+                    )
                     if real_result._yield_per:
                         num_required = num = real_result._yield_per
                     else:
@@ -652,10 +660,12 @@ class ResultInternal(InPlaceGenerative, Generic[_R]):
         else:
 
             def manyrows(
-                        self: ResultInternal[_R], num: Optional[int]
-                    ) -> List[_R]:
+                self: ResultInternal[_R], num: Optional[int]
+            ) -> List[_R]:
                 if num is None:
-                    real_result = self._real_result or cast("Result[Any]", self)
+                    real_result = self._real_result or cast(
+                        "Result[Any]", self
+                    )
                     num = real_result._yield_per
 
                 rows: List[_InterimRowType[Any]] = self._fetchmany_impl(num)

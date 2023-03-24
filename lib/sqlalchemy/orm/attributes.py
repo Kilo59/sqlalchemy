@@ -575,8 +575,6 @@ def create_proxied_attribute(
     # TODO: can move this to descriptor_props if the need for this
     # function is removed from ext/hybrid.py
 
-
-
     class Proxy(QueryableAttribute[Any]):
         """Presents the :class:`.QueryableAttribute` interface as a
         proxy on top of a Python descriptor / :class:`.PropComparator`
@@ -677,7 +675,11 @@ def create_proxied_attribute(
             # detect if this is a plain Python @property, which just returns
             # itself for class level access.  If so, then return us.
             # Otherwise, return the object returned by the descriptor.
-            return self if retval is self.descriptor and instance is None else retval
+            return (
+                self
+                if retval is self.descriptor and instance is None
+                else retval
+            )
 
         def __str__(self) -> str:
             return f"{self.class_.__name__}.{self.key}"
@@ -723,7 +725,6 @@ def create_proxied_attribute(
                                 attribute,
                             )
                         ) from err3
-
 
     Proxy.__name__ = f"{type(descriptor).__name__}Proxy"
 
@@ -876,7 +877,9 @@ class AttributeImpl:
         self.trackparent = trackparent
         self.parent_token = parent_token or self
         self.send_modified_events = send_modified_events
-        self.is_equal = operator.eq if compare_function is None else compare_function
+        self.is_equal = (
+            operator.eq if compare_function is None else compare_function
+        )
         if accepts_scalar_loader is not None:
             self.accepts_scalar_loader = accepts_scalar_loader
         else:
@@ -1076,7 +1079,11 @@ class AttributeImpl:
             elif value is not ATTR_EMPTY:
                 return self.set_committed_value(state, dict_, value)
 
-        return self._default_value(state, dict_) if passive & INIT_OK else NO_VALUE
+        return (
+            self._default_value(state, dict_)
+            if passive & INIT_OK
+            else NO_VALUE
+        )
 
     def _fire_loader_callables(
         self, state: InstanceState[Any], key: str, passive: PassiveFlag
@@ -1902,7 +1909,9 @@ class CollectionAttributeImpl(HasCollectionAdapter, AttributeImpl):
                         or iterable.__class__.__name__
                     )
                     wanted = self._duck_typed_as.__name__  # type: ignore
-                    raise TypeError(f"Incompatible collection type: {given} is not {wanted}-like")
+                    raise TypeError(
+                        f"Incompatible collection type: {given} is not {wanted}-like"
+                    )
 
                 # If the object is an adapted collection, return the (iterable)
                 # adapter.
@@ -2191,8 +2200,8 @@ def backref_listeners(
         return child
 
     def emit_backref_from_collection_remove_event(
-            state, child, initiator, **kw
-        ):
+        state, child, initiator, **kw
+    ):
         if child is None or child is PASSIVE_NO_RESULT or child is NO_VALUE:
             return
         child_state, child_dict = (
@@ -2360,7 +2369,11 @@ class History(NamedTuple):
         deleted: Union[Tuple[()], List[Any]]
 
         if original is _NO_HISTORY:
-            return cls((), (), ()) if current is NO_VALUE else cls((), [current], ())
+            return (
+                cls((), (), ())
+                if current is NO_VALUE
+                else cls((), [current], ())
+            )
         elif (
             current is not NO_VALUE
             and attribute.is_equal(current, original) is True

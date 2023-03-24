@@ -193,7 +193,9 @@ def _bulk_insert(
         identity_cls = mapper._identity_class
         identity_props = [p.key for p in mapper._identity_key_props]
         for state, dict_ in states:
-            state.key = identity_cls, tuple(dict_[key] for key in identity_props)
+            state.key = identity_cls, tuple(
+                dict_[key] for key in identity_props
+            )
 
     if use_orm_insert_stmt is not None:
         assert return_result is not None

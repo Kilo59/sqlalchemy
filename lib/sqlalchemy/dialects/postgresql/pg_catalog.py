@@ -48,7 +48,9 @@ class OIDVECTOR(TypeDecorator):
 class _SpaceVector:
     def result_processor(self, dialect, coltype):
         def process(value):
-            return value if value is None else [int(p) for p in value.split(" ")]
+            return (
+                value if value is None else [int(p) for p in value.split(" ")]
+            )
 
         return process
 

@@ -1718,7 +1718,9 @@ class MSTypeCompiler(compiler.GenericTypeCompiler):
 
     def visit_DATETIME2(self, type_, **kw):
         precision = getattr(type_, "precision", None)
-        return f"DATETIME2({precision})" if precision is not None else "DATETIME2"
+        return (
+            f"DATETIME2({precision})" if precision is not None else "DATETIME2"
+        )
 
     def visit_SMALLDATETIME(self, type_, **kw):
         return "SMALLDATETIME"
@@ -1942,7 +1944,11 @@ class MSExecutionContext(default.DefaultExecutionContext):
 
     @property
     def rowcount(self):
-        return self._rowcount if self._rowcount is not None else self.cursor.rowcount
+        return (
+            self._rowcount
+            if self._rowcount is not None
+            else self.cursor.rowcount
+        )
 
     def handle_dbapi_exception(self, e):
         if self._enable_identity_insert:
@@ -2168,9 +2174,7 @@ class MSSQLCompiler(compiler.SQLCompiler):
         )
 
         mssql_rn = sql.column("mssql_rn")
-        limitselect = sql.select(
-            *[c for c in select.c if c.key != "mssql_rn"]
-        )
+        limitselect = sql.select(*[c for c in select.c if c.key != "mssql_rn"])
         if offset_clause is not None:
             limitselect = limitselect.where(mssql_rn > offset_clause)
             if limit_clause is not None:
@@ -3137,7 +3141,9 @@ class MSDialect(default.DefaultDialect):
                 % ".".join(str(x) for x in self.server_version_info)
             )
 
-        self.supports_multivalues_insert = self.server_version_info >= MS_2008_VERSION
+        self.supports_multivalues_insert = (
+            self.server_version_info >= MS_2008_VERSION
+        )
         if self.deprecate_large_types is None:
             self.deprecate_large_types = (
                 self.server_version_info >= MS_2012_VERSION
@@ -3441,7 +3447,7 @@ class MSDialect(default.DefaultDialect):
         # LIKE uses '%' to match zero or more characters and '_' to match any
         # single character. We want to match literal underscores, so T-SQL
         # requires that we enclose them in square brackets.
-        return (tablename + ("" if tablename.startswith("##") else "[_][_][_]%"))
+        return tablename + ("" if tablename.startswith("##") else "[_][_][_]%")
 
     def _get_internal_temp_table_name(self, connection, tablename):
         # it's likely that schema is always "dbo", but since we can

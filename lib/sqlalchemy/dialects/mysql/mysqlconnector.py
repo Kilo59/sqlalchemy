@@ -132,7 +132,9 @@ class MySQLDialect_mysqlconnector(MySQLDialect):
     @util.memoized_property
     def _mysqlconnector_version_info(self):
         if self.dbapi and hasattr(self.dbapi, "__version__"):
-            if m := re.match(r"(\d+)\.(\d+)(?:\.(\d+))?", self.dbapi.__version__):
+            if m := re.match(
+                r"(\d+)\.(\d+)(?:\.(\d+))?", self.dbapi.__version__
+            ):
                 return tuple(int(x) for x in m.group(1, 2, 3) if x is not None)
 
     def _detect_charset(self, connection):

@@ -1904,7 +1904,10 @@ class PGCompiler(compiler.SQLCompiler):
                 (
                     "DISTINCT ON ("
                     + ", ".join(
-                        [self.process(col, **kw) for col in select._distinct_on]
+                        [
+                            self.process(col, **kw)
+                            for col in select._distinct_on
+                        ]
                     )
                     + ") "
                 )
@@ -1916,7 +1919,11 @@ class PGCompiler(compiler.SQLCompiler):
 
     def for_update_clause(self, select, **kw):
         if select._for_update_arg.read:
-            tmp = " FOR KEY SHARE" if select._for_update_arg.key_share else " FOR SHARE"
+            tmp = (
+                " FOR KEY SHARE"
+                if select._for_update_arg.key_share
+                else " FOR SHARE"
+            )
         elif select._for_update_arg.key_share:
             tmp = " FOR NO KEY UPDATE"
         else:
@@ -2012,9 +2019,9 @@ class PGCompiler(compiler.SQLCompiler):
                 value = elements.BindParameter(None, value, type_=c.type)
 
             elif (
-                    isinstance(value, elements.BindParameter)
-                    and value.type._isnull
-                ):
+                isinstance(value, elements.BindParameter)
+                and value.type._isnull
+            ):
                 value = value._clone()
                 value.type = c.type
             value_text = self.process(value.self_group(), use_schema=False)
@@ -2266,7 +2273,9 @@ class PGDDLCompiler(compiler.DDLCompiler):
         if withclause := index.dialect_options["postgresql"]["with"]:
             text += f' WITH ({", ".join(["%s = %s" % storage_parameter for storage_parameter in withclause.items()])})'
 
-        if tablespace_name := index.dialect_options["postgresql"]["tablespace"]:
+        if tablespace_name := index.dialect_options["postgresql"][
+            "tablespace"
+        ]:
             text += f" TABLESPACE {preparer.quote(tablespace_name)}"
 
         whereclause = index.dialect_options["postgresql"]["where"]
@@ -2301,7 +2310,9 @@ class PGDDLCompiler(compiler.DDLCompiler):
     def visit_exclude_constraint(self, constraint, **kw):
         text = ""
         if constraint.name is not None:
-            text += f"CONSTRAINT {self.preparer.format_constraint(constraint)} "
+            text += (
+                f"CONSTRAINT {self.preparer.format_constraint(constraint)} "
+            )
         kw["include_table"] = False
         kw["literal_binds"] = True
         elements = []
@@ -2369,7 +2380,9 @@ class PGDDLCompiler(compiler.DDLCompiler):
 
     def visit_create_sequence(self, create, **kw):
         if create.element.data_type is not None:
-            prefix = f" AS {self.type_compiler.process(create.element.data_type)}"
+            prefix = (
+                f" AS {self.type_compiler.process(create.element.data_type)}"
+            )
         else:
             prefix = None
         return super().visit_create_sequence(create, prefix=prefix, **kw)
@@ -2786,7 +2799,9 @@ class PGExecutionContext(default.DefaultExecutionContext):
         if column.primary_key and column is column.table._autoincrement_column:
             if column.server_default and column.server_default.has_argument:
                 # pre-execute passive defaults on primary key columns
-                return self._execute_scalar(f"select {column.server_default.arg}", column.type)
+                return self._execute_scalar(
+                    f"select {column.server_default.arg}", column.type
+                )
 
             elif column.default is None or (
                 column.default.is_sequence and column.default.optional
@@ -2800,8 +2815,8 @@ class PGExecutionContext(default.DefaultExecutionContext):
                 except AttributeError:
                     tab = column.table.name
                     col = column.name
-                    tab = tab[:29 + max(0, (29 - len(col)))]
-                    col = col[:29 + max(0, (29 - len(tab)))]
+                    tab = tab[: 29 + max(0, (29 - len(col)))]
+                    col = col[: 29 + max(0, (29 - len(tab)))]
                     name = f"{tab}_{col}_seq"
                     column._postgresql_seq_name = seq_name = name
 
@@ -3154,7 +3169,9 @@ class PGDialect(default.DefaultDialect):
         ):
             return tuple(int(x) for x in m.group(1, 2, 3) if x is not None)
         else:
-            raise AssertionError(f"Could not determine version from string '{v}'")
+            raise AssertionError(
+                f"Could not determine version from string '{v}'"
+            )
 
     @reflection.cache
     def get_table_oid(self, connection, table_name, schema=None, **kw):
@@ -3282,7 +3299,11 @@ class PGDialect(default.DefaultDialect):
             ) from None
 
     def _prepare_filter_names(self, filter_names):
-        return (True, {"filter_names": filter_names}) if filter_names else (False, {})
+        return (
+            (True, {"filter_names": filter_names})
+            if filter_names
+            else (False, {})
+        )
 
     def _kind_to_relkinds(self, kind: ObjectKind) -> Tuple[str, ...]:
         if kind is ObjectKind.ANY:

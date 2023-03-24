@@ -12,7 +12,9 @@ class MariaDBDialect(MySQLDialect):
 
 
 def loader(driver):
-    driver_mod = __import__(f"sqlalchemy.dialects.mysql.{driver}").dialects.mysql
+    driver_mod = __import__(
+        f"sqlalchemy.dialects.mysql.{driver}"
+    ).dialects.mysql
     driver_cls = getattr(driver_mod, driver).dialect
 
     return type(

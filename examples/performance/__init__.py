@@ -260,7 +260,9 @@ class Profiler:
     @classmethod
     def setup_once(cls, fn):
         if cls._setup_once is not None:
-            raise ValueError(f"setup_once function already set to {cls._setup_once}")
+            raise ValueError(
+                f"setup_once function already set to {cls._setup_once}"
+            )
         cls._setup_once = staticmethod(fn)
         return fn
 

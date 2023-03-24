@@ -444,7 +444,8 @@ class CursorResultMetaData(ResultMetaData):
                 # then for the dupe keys, put the "ambiguous column"
                 # record into by_key.
                 by_key |= {
-                    key: (None, None, [], key, key, None, None) for key in dupes
+                    key: (None, None, [], key, key, None, None)
+                    for key in dupes
                 }
 
             else:
@@ -1126,7 +1127,11 @@ class CursorFetchStrategy(ResultFetchStrategy):
         size: Optional[int] = None,
     ) -> Any:
         try:
-            l = dbapi_cursor.fetchmany() if size is None else dbapi_cursor.fetchmany(size)
+            l = (
+                dbapi_cursor.fetchmany()
+                if size is None
+                else dbapi_cursor.fetchmany(size)
+            )
             if not l:
                 result._soft_close()
             return l
@@ -1877,7 +1882,9 @@ class CursorResult(Result[_T]):
                 "is supported, please use .returned_defaults_rows."
             )
 
-        return rows[0] if (rows := self.context.returned_default_rows) else None
+        return (
+            rows[0] if (rows := self.context.returned_default_rows) else None
+        )
 
     def lastrow_has_defaults(self):
         """Return ``lastrow_has_defaults()`` from the underlying

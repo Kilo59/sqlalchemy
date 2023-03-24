@@ -309,9 +309,7 @@ class MySQLDialect_asyncmy(MySQLDialect_pymysql):
         if super().is_disconnect(e, connection, cursor):
             return True
         str_e = str(e).lower()
-        return (
-            "not connected" in str_e or "network operation failed" in str_e
-        )
+        return "not connected" in str_e or "network operation failed" in str_e
 
     def _found_rows_client_flag(self):
         from asyncmy.constants import CLIENT

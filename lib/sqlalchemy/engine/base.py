@@ -1859,7 +1859,9 @@ class Connection(ConnectionEventsTarget, inspection.Inspectable["Inspector"]):
 
         effective_parameters: Optional[_AnyExecuteParams]
 
-        effective_parameters = parameters if context.executemany else parameters[0]
+        effective_parameters = (
+            parameters if context.executemany else parameters[0]
+        )
         if self._has_events or self.engine._has_events:
             for fn in self.dispatch.before_cursor_execute:
                 str_statement, effective_parameters = fn(
@@ -2138,7 +2140,11 @@ class Connection(ConnectionEventsTarget, inspection.Inspectable["Inspector"]):
             self._log_info(statement)
             self._log_info("[raw sql] %r", parameters)
         try:
-            for fn in self.dialect.dispatch.do_execute if self.dialect._has_events else ():
+            for fn in (
+                self.dialect.dispatch.do_execute
+                if self.dialect._has_events
+                else ()
+            ):
                 if fn(cursor, statement, parameters, context):
                     break
             else:
@@ -2187,7 +2193,9 @@ class Connection(ConnectionEventsTarget, inspection.Inspectable["Inspector"]):
                 isinstance(e, self.dialect.loaded_dbapi.Error)
                 and not self.closed
                 and self.dialect.is_disconnect(
-                    e, None if self.invalidated else self._dbapi_connection, cursor
+                    e,
+                    None if self.invalidated else self._dbapi_connection,
+                    cursor,
                 )
                 or (is_exit_exception and not self.closed)
             )

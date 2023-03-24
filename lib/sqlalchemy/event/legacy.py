@@ -101,7 +101,11 @@ def _wrap_fn_for_legacy(
                     util.warn_deprecated(warning_txt, version=since)
                     argdict = dict(zip(dispatch_collection.arg_names, args))
                     args_from_dict = [argdict[name] for name in argnames]
-                    return fn(*args_from_dict, **kw) if has_kw else fn(*args_from_dict)
+                    return (
+                        fn(*args_from_dict, **kw)
+                        if has_kw
+                        else fn(*args_from_dict)
+                    )
 
             return wrap_leg
     else:

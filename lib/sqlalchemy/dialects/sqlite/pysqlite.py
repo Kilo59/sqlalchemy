@@ -471,7 +471,11 @@ class _SQLite_pysqliteTimeStamp(DATETIME):
 
 class _SQLite_pysqliteDate(DATE):
     def bind_processor(self, dialect):
-        return None if dialect.native_datetime else DATE.bind_processor(self, dialect)
+        return (
+            None
+            if dialect.native_datetime
+            else DATE.bind_processor(self, dialect)
+        )
 
     def result_processor(self, dialect, coltype):
         if dialect.native_datetime:
@@ -511,7 +515,11 @@ class SQLiteDialect_pysqlite(SQLiteDialect):
 
     @classmethod
     def get_pool_class(cls, url):
-        return pool.QueuePool if cls._is_url_file_db(url) else pool.SingletonThreadPool
+        return (
+            pool.QueuePool
+            if cls._is_url_file_db(url)
+            else pool.SingletonThreadPool
+        )
 
     def _get_server_version_info(self, connection):
         return self.dbapi.sqlite_version_info

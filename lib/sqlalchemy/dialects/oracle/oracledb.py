@@ -95,7 +95,9 @@ class OracleDialect_oracledb(_OracleDialect_cx_oracle):
     def _load_version(self, dbapi_module):
         version = (0, 0, 0)
         if dbapi_module is not None:
-            if m := re.match(r"(\d+)\.(\d+)(?:\.(\d+))?", dbapi_module.version):
+            if m := re.match(
+                r"(\d+)\.(\d+)(?:\.(\d+))?", dbapi_module.version
+            ):
                 version = tuple(
                     int(x) for x in m.group(1, 2, 3) if x is not None
                 )

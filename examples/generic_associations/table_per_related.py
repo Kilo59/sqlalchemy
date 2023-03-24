@@ -77,7 +77,9 @@ class HasAddresses:
             (Address, Base),
             dict(
                 __tablename__=f"{cls.__tablename__}_address",
-                parent_id=Column(Integer, ForeignKey(f"{cls.__tablename__}.id")),
+                parent_id=Column(
+                    Integer, ForeignKey(f"{cls.__tablename__}.id")
+                ),
                 parent=relationship(cls),
             ),
         )

@@ -89,7 +89,9 @@ class PyODBCConnector(Connector):
                 "host" in keys and "database" not in keys
             )
             if dsn_connection:
-                connectors = [f'dsn={keys.pop("host", "") or keys.pop("dsn", "")}']
+                connectors = [
+                    f'dsn={keys.pop("host", "") or keys.pop("dsn", "")}'
+                ]
             else:
                 port = ""
                 if "port" in keys and "port" not in query:
@@ -132,7 +134,9 @@ class PyODBCConnector(Connector):
             # client encoding.  This should obviously be set to 'No' if
             # you query a cp1253 encoded database from a latin1 client...
             if "odbc_autotranslate" in keys:
-                connectors.append(f'AutoTranslate={keys.pop("odbc_autotranslate")}')
+                connectors.append(
+                    f'AutoTranslate={keys.pop("odbc_autotranslate")}'
+                )
 
             connectors.extend([f"{k}={v}" for k, v in keys.items()])
 
@@ -154,15 +158,19 @@ class PyODBCConnector(Connector):
             return False
 
     def _dbapi_version(self) -> interfaces.VersionInfoType:
-        return self._parse_dbapi_version(self.dbapi.version) if self.dbapi else ()
+        return (
+            self._parse_dbapi_version(self.dbapi.version) if self.dbapi else ()
+        )
 
     def _parse_dbapi_version(self, vers: str) -> interfaces.VersionInfoType:
         m = re.match(r"(?:py.*-)?([\d\.]+)(?:-(\w+))?", vers)
         if not m:
             return ()
-        vers_tuple: interfaces.VersionInfoType = tuple(int(x) for x in m[1].split("."))
+        vers_tuple: interfaces.VersionInfoType = tuple(
+            int(x) for x in m[1].split(".")
+        )
         if m[2]:
-            vers_tuple += (m[2], )
+            vers_tuple += (m[2],)
         return vers_tuple
 
     def _get_server_version_info(

@@ -444,7 +444,11 @@ class _ms_binary_pyodbc:
         DBAPIBinary = dialect.dbapi.Binary
 
         def process(value):
-            return DBAPIBinary(value) if value is not None else dialect.dbapi.BinaryNull
+            return (
+                DBAPIBinary(value)
+                if value is not None
+                else dialect.dbapi.BinaryNull
+            )
 
         return process
 

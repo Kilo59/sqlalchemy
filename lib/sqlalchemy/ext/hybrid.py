@@ -915,7 +915,9 @@ class _HybridSetterType(Protocol[_T_con]):
 
 
 class _HybridUpdaterType(Protocol[_T_con]):
-    def __call__(self, cls: Any, value: Union[_T_con, _ColumnExpressionArgument[_T_con]]) -> List[Tuple[_DMLColumnArgument, Any]]:
+    def __call__(
+        self, cls: Any, value: Union[_T_con, _ColumnExpressionArgument[_T_con]]
+    ) -> List[Tuple[_DMLColumnArgument, Any]]:
         ...
 
 
@@ -1409,8 +1411,8 @@ class hybrid_property(interfaces.InspectionAttrInfo, ORMDescriptor[_T]):
         proxy_attr = attributes.create_proxied_attribute(self)
 
         def expr_comparator(
-                owner: Type[object],
-            ) -> _HybridClassLevelAccessor[_T]:
+            owner: Type[object],
+        ) -> _HybridClassLevelAccessor[_T]:
             # because this is the descriptor protocol, we don't really know
             # what our attribute name is.  so search for it through the
             # MRO.

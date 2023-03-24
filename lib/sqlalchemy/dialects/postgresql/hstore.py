@@ -234,7 +234,9 @@ class HSTORE(sqltypes.Indexable, sqltypes.Concatenable, sqltypes.TypeEngine):
 
     def bind_processor(self, dialect):
         def process(value):
-            return _serialize_hstore(value) if isinstance(value, dict) else value
+            return (
+                _serialize_hstore(value) if isinstance(value, dict) else value
+            )
 
         return process
 
@@ -427,4 +429,6 @@ def _serialize_hstore(val):
                 "%r in %s position is not a string." % (s, position)
             )
 
-    return ", ".join(f'{esc(k, "key")}=>{esc(v, "value")}' for k, v in val.items())
+    return ", ".join(
+        f'{esc(k, "key")}=>{esc(v, "value")}' for k, v in val.items()
+    )

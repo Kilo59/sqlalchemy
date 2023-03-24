@@ -297,7 +297,9 @@ class DefaultDialect(Dialect):
                 self.server_side_cursors = True
 
             else:
-                raise exc.ArgumentError(f"Dialect {self} does not support server side cursors")
+                raise exc.ArgumentError(
+                    f"Dialect {self} does not support server side cursors"
+                )
         if getattr(self, "use_setinputsizes", False):
             util.warn_deprecated(
                 "The dialect-level use_setinputsizes attribute is "
@@ -493,7 +495,9 @@ class DefaultDialect(Dialect):
             self.default_isolation_level = None
 
         if not self._user_defined_max_identifier_length:
-            if max_ident_length := self._check_max_identifier_length(connection):
+            if max_ident_length := self._check_max_identifier_length(
+                connection
+            ):
                 self.max_identifier_length = max_ident_length
 
         if (
@@ -603,9 +607,9 @@ class DefaultDialect(Dialect):
     def set_connection_execution_options(
         self, connection: Connection, opts: Mapping[str, Any]
     ) -> None:
-        if supported_names := set(self.connection_characteristics).intersection(
-            opts
-        ):
+        if supported_names := set(
+            self.connection_characteristics
+        ).intersection(opts):
             characteristics: Mapping[str, Any] = util.immutabledict(
                 (name, opts[name]) for name in supported_names
             )

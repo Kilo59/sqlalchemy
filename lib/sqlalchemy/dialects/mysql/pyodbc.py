@@ -94,7 +94,9 @@ class MySQLDialect_pyodbc(PyODBCConnector, MySQLDialect):
         # set this to None as _fetch_setting attempts to use it (None is OK)
         self._connection_charset = None
         try:
-            if value := self._fetch_setting(connection, "character_set_client"):
+            if value := self._fetch_setting(
+                connection, "character_set_client"
+            ):
                 return value
         except exc.DBAPIError:
             pass

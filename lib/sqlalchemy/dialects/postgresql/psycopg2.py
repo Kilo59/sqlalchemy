@@ -639,7 +639,9 @@ class PGDialect_psycopg2(_PGDialect_common_psycopg):
         self.executemany_batch_page_size = executemany_batch_page_size
 
         if self.dbapi and hasattr(self.dbapi, "__version__"):
-            if m := re.match(r"(\d+)\.(\d+)(?:\.(\d+))?", self.dbapi.__version__):
+            if m := re.match(
+                r"(\d+)\.(\d+)(?:\.(\d+))?", self.dbapi.__version__
+            ):
                 self.psycopg2_version = tuple(
                     int(x) for x in m.group(1, 2, 3) if x is not None
                 )

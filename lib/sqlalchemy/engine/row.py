@@ -162,6 +162,7 @@ class Row(BaseRow, Sequence[Any], Generic[_TP]):
             def go(self: Row) -> Any:
                 if self._parent._has_key(name):
                     return self.__getattr__(name)
+
                 def meth(*arg: Any, **kw: Any) -> Any:
                     return getattr(collections_abc.Sequence, name)(
                         self, *arg, **kw

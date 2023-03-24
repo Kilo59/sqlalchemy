@@ -357,7 +357,11 @@ class _ClassInstrumentationAdapter(ClassManager):
 
         A private convenience method used by the __init__ decorator.
         """
-        return False if self.has_state(instance) else self.setup_instance(instance)
+        return (
+            False
+            if self.has_state(instance)
+            else self.setup_instance(instance)
+        )
 
     def setup_instance(self, instance, state=None):
         self._adapted.initialize_instance_dict(self.class_, instance)

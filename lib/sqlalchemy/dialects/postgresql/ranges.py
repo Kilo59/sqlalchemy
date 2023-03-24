@@ -453,7 +453,12 @@ class Range(Generic[_T]):
             step = self._get_discrete_step()
             if step is None:
                 return False
-            if bound1 == "]" and bound2 == "[" or bound1 != "]" and bound2 != "[":
+            if (
+                bound1 == "]"
+                and bound2 == "["
+                or bound1 != "]"
+                and bound2 != "["
+            ):
                 return value1 == value2 - step  # type: ignore
             else:
                 return value1 == value2

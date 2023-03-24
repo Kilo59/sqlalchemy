@@ -92,7 +92,9 @@ class MySQLDialect_mariadbconnector(MySQLDialect):
         if self.dbapi and hasattr(self.dbapi, "__version__"):
             return tuple(
                 int(x)
-                for x in re.findall(r"(\d+)(?:[-\.]?|$)", self.dbapi.__version__)
+                for x in re.findall(
+                    r"(\d+)(?:[-\.]?|$)", self.dbapi.__version__
+                )
             )
         else:
             return (99, 99, 99)

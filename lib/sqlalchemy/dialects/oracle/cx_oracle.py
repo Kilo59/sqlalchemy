@@ -821,9 +821,9 @@ class OracleExecutionContext_cx_oracle(OracleExecutionContext):
                         )
 
                 for param in self.parameters:
-                    param[
-                        quoted_bind_names.get(name, name)
-                    ] = out_parameters[name]
+                    param[quoted_bind_names.get(name, name)] = out_parameters[
+                        name
+                    ]
 
     def _generate_cursor_outputtype_handler(self):
         output_handlers = {}
@@ -1054,7 +1054,9 @@ class OracleDialect_cx_oracle(OracleDialect):
     def _load_version(self, dbapi_module):
         version = (0, 0, 0)
         if dbapi_module is not None:
-            if m := re.match(r"(\d+)\.(\d+)(?:\.(\d+))?", dbapi_module.version):
+            if m := re.match(
+                r"(\d+)\.(\d+)(?:\.(\d+))?", dbapi_module.version
+            ):
                 version = tuple(
                     int(x) for x in m.group(1, 2, 3) if x is not None
                 )

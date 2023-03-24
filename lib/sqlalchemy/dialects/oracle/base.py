@@ -795,7 +795,11 @@ class OracleTypeCompiler(compiler.GenericTypeCompiler):
         return self.visit_SMALLINT(type_, **kw)
 
     def visit_RAW(self, type_, **kw):
-        return "RAW(%(length)s)" % {"length": type_.length} if type_.length else "RAW"
+        return (
+            "RAW(%(length)s)" % {"length": type_.length}
+            if type_.length
+            else "RAW"
+        )
 
     def visit_ROWID(self, type_, **kw):
         return "ROWID"
@@ -2278,7 +2282,11 @@ class OracleDialect(default.DefaultDialect):
         )
 
         def maybe_int(value):
-            return int(value) if isinstance(value, float) and value.is_integer() else value
+            return (
+                int(value)
+                if isinstance(value, float) and value.is_integer()
+                else value
+            )
 
         for row_dict in result:
             table_name = self.normalize_name(row_dict["table_name"])
@@ -2319,7 +2327,9 @@ class OracleDialect(default.DefaultDialect):
                 try:
                     coltype = self.ischema_names[coltype]
                 except KeyError:
-                    util.warn(f"Did not recognize type '{coltype}' of column '{colname}'")
+                    util.warn(
+                        f"Did not recognize type '{coltype}' of column '{colname}'"
+                    )
                     coltype = sqltypes.NULLTYPE
 
             default = row_dict["data_default"]

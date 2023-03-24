@@ -1505,9 +1505,9 @@ def _relationships_for_fks(
                 ):
                     o2m_kws["passive_deletes"] = True
             elif (
-                    constraint.ondelete
-                    and constraint.ondelete.lower() == "set null"
-                ):
+                constraint.ondelete
+                and constraint.ondelete.lower() == "set null"
+            ):
                 o2m_kws["passive_deletes"] = True
 
             create_backref = backref_name not in referred_cfg.properties

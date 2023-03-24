@@ -56,7 +56,11 @@ class _PsycopgNumeric(sqltypes.Numeric):
 
 class _PsycopgHStore(HSTORE):
     def bind_processor(self, dialect):
-        return None if dialect._has_native_hstore else super().bind_processor(dialect)
+        return (
+            None
+            if dialect._has_native_hstore
+            else super().bind_processor(dialect)
+        )
 
     def result_processor(self, dialect, coltype):
         if dialect._has_native_hstore:

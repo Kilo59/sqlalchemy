@@ -586,7 +586,11 @@ class DMLReturningColFilter:
     def adapt_check_present(self, col):
         mapper = self.mapper
         prop = mapper._columntoproperty.get(col, None)
-        return None if prop is None else mapper.local_table.c.corresponding_column(col)
+        return (
+            None
+            if prop is None
+            else mapper.local_table.c.corresponding_column(col)
+        )
 
 
 @sql.base.CompileState.plugin_for("orm", "orm_from_statement")
@@ -1335,7 +1339,8 @@ class ORMSelectCompileState(ORMCompileState, SelectState):
             if "parententity" in ent._annotations:
                 return ent._annotations["parententity"]
         return next(
-            (qent.entity_zero for qent in self._entities if qent.entity_zero), None
+            (qent.entity_zero for qent in self._entities if qent.entity_zero),
+            None,
         )
 
     def _only_full_mapper_zero(self, methname):
@@ -1573,7 +1578,11 @@ class ORMSelectCompileState(ORMCompileState, SelectState):
             return alias.adapt_clause(element)
 
     def _adapt_col_list(self, cols, current_adapter):
-        return [current_adapter(o, True) for o in cols] if current_adapter else cols
+        return (
+            [current_adapter(o, True) for o in cols]
+            if current_adapter
+            else cols
+        )
 
     def _get_current_adapter(self):
 
@@ -1690,7 +1699,8 @@ class ORMSelectCompileState(ORMCompileState, SelectState):
 
                 if from_ is not None and (
                     from_ is not left
-                    and from_._annotations.get("parententity", None) is not left
+                    and from_._annotations.get("parententity", None)
+                    is not left
                 ):
                     raise sa_exc.InvalidRequestError(
                         f'explicit from clause {from_._annotations.get("parententity", from_)} does not match left side of relationship attribute {onclause}'

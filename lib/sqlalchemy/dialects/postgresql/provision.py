@@ -31,7 +31,9 @@ def _pg_create_db(cfg, eng, ident):
         attempt = 0
         while True:
             try:
-                conn.exec_driver_sql(f"CREATE DATABASE {ident} TEMPLATE {template_db}")
+                conn.exec_driver_sql(
+                    f"CREATE DATABASE {ident} TEMPLATE {template_db}"
+                )
             except exc.OperationalError as err:
                 attempt += 1
                 if attempt >= 3:

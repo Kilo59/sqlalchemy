@@ -1388,7 +1388,9 @@ class SQLiteCompiler(compiler.SQLCompiler):
         )
 
     def visit_is_distinct_from_binary(self, binary, operator, **kw):
-        return f"{self.process(binary.left)} IS NOT {self.process(binary.right)}"
+        return (
+            f"{self.process(binary.left)} IS NOT {self.process(binary.right)}"
+        )
 
     def visit_is_not_distinct_from_binary(self, binary, operator, **kw):
         return f"{self.process(binary.left)} IS {self.process(binary.right)}"
@@ -1486,9 +1488,9 @@ class SQLiteCompiler(compiler.SQLCompiler):
                 value = elements.BindParameter(None, value, type_=c.type)
 
             elif (
-                    isinstance(value, elements.BindParameter)
-                    and value.type._isnull
-                ):
+                isinstance(value, elements.BindParameter)
+                and value.type._isnull
+            ):
                 value = value._clone()
                 value.type = c.type
             value_text = self.process(value.self_group(), use_schema=False)
@@ -2174,7 +2176,11 @@ class SQLiteDialect(default.DefaultDialect):
 
     @reflection.cache
     def get_columns(self, connection, table_name, schema=None, **kw):
-        pragma = "table_xinfo" if self.server_version_info >= (3, 31) else "table_info"
+        pragma = (
+            "table_xinfo"
+            if self.server_version_info >= (3, 31)
+            else "table_info"
+        )
         info = self._get_table_pragma(
             connection, pragma, table_name, schema=schema
         )
@@ -2628,7 +2634,9 @@ class SQLiteDialect(default.DefaultDialect):
                     # unless the regex is broken this case shouldn't happen
                     # because we know this is a partial index, so the
                     # definition sql should match the regex
-                    util.warn(f"Failed to look up filter predicate of partial index {row[1]}")
+                    util.warn(
+                        f"Failed to look up filter predicate of partial index {row[1]}"
+                    )
                 else:
                     predicate = predicate_match[1]
                     indexes[-1]["dialect_options"]["sqlite_where"] = text(
@@ -2672,7 +2680,9 @@ class SQLiteDialect(default.DefaultDialect):
     @reflection.cache
     def _get_table_sql(self, connection, table_name, schema=None, **kw):
         if schema:
-            schema_expr = f"{self.identifier_preparer.quote_identifier(schema)}."
+            schema_expr = (
+                f"{self.identifier_preparer.quote_identifier(schema)}."
+            )
         else:
             schema_expr = ""
         try:

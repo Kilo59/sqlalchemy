@@ -701,7 +701,9 @@ class AsyncAdapt_asyncpg_connection(AdaptedConnection):
 
             for super_ in type(error).__mro__:
                 if super_ in exception_mapping:
-                    translated_error = exception_mapping[super_](f"{type(error)}: {error}")
+                    translated_error = exception_mapping[super_](
+                        f"{type(error)}: {error}"
+                    )
                     translated_error.pgcode = (
                         translated_error.sqlstate
                     ) = getattr(error, "sqlstate", None)
@@ -714,7 +716,9 @@ class AsyncAdapt_asyncpg_connection(AdaptedConnection):
 
     @autocommit.setter
     def autocommit(self, value):
-        self.isolation_level = "autocommit" if value else self._isolation_setting
+        self.isolation_level = (
+            "autocommit" if value else self._isolation_setting
+        )
 
     def ping(self):
         try:
@@ -925,7 +929,9 @@ class PGDialect_asyncpg(PGDialect):
         if self.dbapi and hasattr(self.dbapi, "__version__"):
             return tuple(
                 int(x)
-                for x in re.findall(r"(\d+)(?:[-\.]?|$)", self.dbapi.__version__)
+                for x in re.findall(
+                    r"(\d+)(?:[-\.]?|$)", self.dbapi.__version__
+                )
             )
         else:
             return (99, 99, 99)

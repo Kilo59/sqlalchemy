@@ -580,7 +580,10 @@ class URL(NamedTuple):
         """  # noqa: E501
 
         return util.immutabledict(
-            {k: v if isinstance(v, tuple) else (v,) for k, v in self.query.items()}
+            {
+                k: v if isinstance(v, tuple) else (v,)
+                for k, v in self.query.items()
+            }
         )
 
     @util.deprecated(
@@ -819,7 +822,11 @@ def make_url(name_or_url: Union[str, URL]) -> URL:
 
     """
 
-    return _parse_url(name_or_url) if isinstance(name_or_url, str) else name_or_url
+    return (
+        _parse_url(name_or_url)
+        if isinstance(name_or_url, str)
+        else name_or_url
+    )
 
 
 def _parse_url(name: str) -> URL:
@@ -845,7 +852,9 @@ def _parse_url(name: str) -> URL:
 
     m = pattern.match(name)
     if m is None:
-        raise exc.ArgumentError(f"Could not parse SQLAlchemy URL from string '{name}'")
+        raise exc.ArgumentError(
+            f"Could not parse SQLAlchemy URL from string '{name}'"
+        )
     components = m.groupdict()
     query: Optional[Dict[str, Union[str, List[str]]]]
     if components["query"] is not None:

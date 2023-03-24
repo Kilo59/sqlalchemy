@@ -104,12 +104,12 @@ def flexi_cache(
 ) -> Callable[[Callable[..., _R]], Callable[..., _R]]:
     @util.decorator
     def go(
-            fn: Callable[..., _R],
-            self: Dialect,
-            con: Connection,
-            *args: Any,
-            **kw: Any,
-        ) -> _R:
+        fn: Callable[..., _R],
+        self: Dialect,
+        con: Connection,
+        *args: Any,
+        **kw: Any,
+    ) -> _R:
         info_cache = kw.get("info_cache")
         if info_cache is None:
             return fn(self, con, *args, **kw)
@@ -318,7 +318,11 @@ class Inspector(inspection.Inspectable["Inspector"]):
 
         """
         conn: Connection
-        conn = self.bind.connect() if self._op_context_requires_connect else self.bind
+        conn = (
+            self.bind.connect()
+            if self._op_context_requires_connect
+            else self.bind
+        )
         try:
             yield conn
         finally:

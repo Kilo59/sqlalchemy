@@ -1580,7 +1580,11 @@ class MySQLCompiler(compiler.SQLCompiler):
         )
 
     def for_update_clause(self, select, **kw):
-        tmp = " LOCK IN SHARE MODE" if select._for_update_arg.read else " FOR UPDATE"
+        tmp = (
+            " LOCK IN SHARE MODE"
+            if select._for_update_arg.read
+            else " FOR UPDATE"
+        )
         if select._for_update_arg.of and self.dialect.supports_for_update_of:
 
             tables = util.OrderedSet()
@@ -1680,7 +1684,8 @@ class MySQLCompiler(compiler.SQLCompiler):
             "as _empty_set WHERE 1!=1"
             % {
                 "inner": ", ".join(
-                    f"1 AS _in_{idx}" for idx, type_ in enumerate(element_types)
+                    f"1 AS _in_{idx}"
+                    for idx, type_ in enumerate(element_types)
                 ),
                 "outer": ", ".join(
                     f"_in_{idx}" for idx, type_ in enumerate(element_types)
@@ -1916,7 +1921,9 @@ class MySQLDDLCompiler(compiler.DDLCompiler):
         if index.unique:
             text += "UNIQUE "
 
-        if index_prefix := index.kwargs.get(f"{self.dialect.name}_prefix", None):
+        if index_prefix := index.kwargs.get(
+            f"{self.dialect.name}_prefix", None
+        ):
             text += f"{index_prefix} "
 
         text += "INDEX "
@@ -1928,9 +1935,9 @@ class MySQLDDLCompiler(compiler.DDLCompiler):
         if length is None:
             columns = ", ".join(columns)
         elif isinstance(length, dict):
-                # length value can be a (column_name --> integer value)
-                # mapping specifying the prefix length for each column of the
-                # index
+            # length value can be a (column_name --> integer value)
+            # mapping specifying the prefix length for each column of the
+            # index
             columns = ", ".join(
                 "%s(%d)" % (expr, length[col.name])
                 if col.name in length
@@ -1942,9 +1949,7 @@ class MySQLDDLCompiler(compiler.DDLCompiler):
         else:
             # or can be an integer value specifying the same
             # prefix length for all columns of the index
-            columns = ", ".join(
-                "%s(%d)" % (col, length) for col in columns
-            )
+            columns = ", ".join("%s(%d)" % (col, length) for col in columns)
         text += f"({columns})"
 
         parser = index.dialect_options["mysql"]["with_parser"]
@@ -2122,7 +2127,9 @@ class MySQLTypeCompiler(compiler.GenericTypeCompiler):
             and type_.scale is not None
             and type_.precision is not None
         ):
-            return self._extend_numeric(type_, f"FLOAT({type_.precision}, {type_.scale})")
+            return self._extend_numeric(
+                type_, f"FLOAT({type_.precision}, {type_.scale})"
+            )
         elif type_.precision is not None:
             return self._extend_numeric(type_, f"FLOAT({type_.precision})")
         else:
@@ -2160,7 +2167,9 @@ class MySQLTypeCompiler(compiler.GenericTypeCompiler):
 
     def visit_TINYINT(self, type_, **kw):
         if self._mysql_type(type_) and type_.display_width is not None:
-            return self._extend_numeric(type_, f"TINYINT({type_.display_width})")
+            return self._extend_numeric(
+                type_, f"TINYINT({type_.display_width})"
+            )
         else:
             return self._extend_numeric(type_, "TINYINT")
 
@@ -2187,7 +2196,9 @@ class MySQLTypeCompiler(compiler.GenericTypeCompiler):
         return "DATE"
 
     def visit_TIME(self, type_, **kw):
-        return "TIME(%d)" % type_.fsp if getattr(type_, "fsp", None) else "TIME"
+        return (
+            "TIME(%d)" % type_.fsp if getattr(type_, "fsp", None) else "TIME"
+        )
 
     def visit_TIMESTAMP(self, type_, **kw):
         if getattr(type_, "fsp", None):
@@ -2290,8 +2301,12 @@ class MySQLTypeCompiler(compiler.GenericTypeCompiler):
         return "LONGBLOB"
 
     def _visit_enumerated_values(self, name, type_, enumerated_values):
-        quoted_enums = [f"""'{e.replace("'", "''")}'""" for e in enumerated_values]
-        return self._extend_string(type_, {}, f'{name}({",".join(quoted_enums)})')
+        quoted_enums = [
+            f"""'{e.replace("'", "''")}'""" for e in enumerated_values
+        ]
+        return self._extend_string(
+            type_, {}, f'{name}({",".join(quoted_enums)})'
+        )
 
     def visit_ENUM(self, type_, **kw):
         return self._visit_enumerated_values("ENUM", type_, type_.enums)
@@ -2564,7 +2579,7 @@ class MySQLDialect(default.DefaultDialect):
 
     def do_recover_twophase(self, connection):
         resultset = connection.exec_driver_sql("XA RECOVER")
-        return [row["data"][:row["gtrid_length"]] for row in resultset]
+        return [row["data"][: row["gtrid_length"]] for row in resultset]
 
     def is_disconnect(self, e, connection, cursor):
         if isinstance(
@@ -2806,7 +2821,9 @@ class MySQLDialect(default.DefaultDialect):
     @reflection.cache
     def get_table_names(self, connection, schema=None, **kw):
         """Return a Unicode SHOW TABLES from a given schema."""
-        current_schema = schema if schema is not None else self.default_schema_name
+        current_schema = (
+            schema if schema is not None else self.default_schema_name
+        )
         charset = self._connection_charset
 
         rp = connection.exec_driver_sql(

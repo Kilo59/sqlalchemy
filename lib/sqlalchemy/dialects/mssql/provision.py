@@ -45,8 +45,12 @@ def generate_driver_url(url, driver, query_str):
 def _mssql_create_db(cfg, eng, ident):
     with eng.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
         conn.exec_driver_sql(f"create database {ident}")
-        conn.exec_driver_sql(f"ALTER DATABASE {ident} SET ALLOW_SNAPSHOT_ISOLATION ON")
-        conn.exec_driver_sql(f"ALTER DATABASE {ident} SET READ_COMMITTED_SNAPSHOT ON")
+        conn.exec_driver_sql(
+            f"ALTER DATABASE {ident} SET ALLOW_SNAPSHOT_ISOLATION ON"
+        )
+        conn.exec_driver_sql(
+            f"ALTER DATABASE {ident} SET READ_COMMITTED_SNAPSHOT ON"
+        )
         conn.exec_driver_sql(f"use {ident}")
         conn.exec_driver_sql("create schema test_schema")
         conn.exec_driver_sql("create schema test_schema_2")

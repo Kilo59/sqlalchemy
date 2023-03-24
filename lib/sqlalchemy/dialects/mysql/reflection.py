@@ -199,7 +199,9 @@ class MySQLTableDefinitionParser:
                 if opt not in state.table_options:
                     state.table_options[opt] = val
                 else:
-                    state.table_options[opt] = f"{state.table_options[opt]}, {val}"
+                    state.table_options[
+                        opt
+                    ] = f"{state.table_options[opt]}, {val}"
             else:
                 state.table_options[f"{self.dialect.name}_{opt}"] = val
 
@@ -293,7 +295,9 @@ class MySQLTableDefinitionParser:
             col_kw["computed"] = computed
 
         col_d = (
-            dict(name=name, type=type_instance, default=default, comment=comment)
+            dict(
+                name=name, type=type_instance, default=default, comment=comment
+            )
             | col_kw
         )
         state.columns.append(col_d)

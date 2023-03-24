@@ -99,7 +99,11 @@ from ... import util
 class MySQLExecutionContext_mysqldb(MySQLExecutionContext):
     @property
     def rowcount(self):
-        return self._rowcount if hasattr(self, "_rowcount") else self.cursor.rowcount
+        return (
+            self._rowcount
+            if hasattr(self, "_rowcount")
+            else self.cursor.rowcount
+        )
 
 
 class MySQLCompiler_mysqldb(MySQLCompiler):

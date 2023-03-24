@@ -54,7 +54,9 @@ def str_to_datetime_processor_factory(
             ) from err
 
         if m is None:
-            raise ValueError(f"Couldn't parse {type_.__name__} string: '{value}'")
+            raise ValueError(
+                f"Couldn't parse {type_.__name__} string: '{value}'"
+            )
         if has_named_groups:
             groups = m.groupdict(0)
             return type_(

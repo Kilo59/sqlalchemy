@@ -1234,7 +1234,9 @@ def _dict_decorators() -> Dict[str, Callable[[_FN], _FN]]:
         def pop(self, key, default=NO_ARG):
             __before_pop(self)
             _to_del = key in self
-            item = fn(self, key) if default is NO_ARG else fn(self, key, default)
+            item = (
+                fn(self, key) if default is NO_ARG else fn(self, key, default)
+            )
             if _to_del:
                 __del(self, item, None, key)
             return item

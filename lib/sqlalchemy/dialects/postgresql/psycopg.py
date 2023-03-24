@@ -299,7 +299,9 @@ class PGDialect_psycopg(_PGDialect_common_psycopg):
         super().__init__(**kwargs)
 
         if self.dbapi:
-            if m := re.match(r"(\d+)\.(\d+)(?:\.(\d+))?", self.dbapi.__version__):
+            if m := re.match(
+                r"(\d+)\.(\d+)(?:\.(\d+))?", self.dbapi.__version__
+            ):
                 self.psycopg_version = tuple(
                     int(x) for x in m.group(1, 2, 3) if x is not None
                 )
