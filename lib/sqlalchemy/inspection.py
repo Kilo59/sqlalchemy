@@ -39,10 +39,14 @@ from typing import overload
 from typing import Type
 from typing import TypeVar
 from typing import Union
+from typing import TYPE_CHECKING
 
 from . import exc
 from .util.typing import Literal
 from .util.typing import Protocol
+
+if TYPE_CHECKING:
+    from sqlalchemy.engine import Engine, Inspector
 
 _T = TypeVar("_T", bound=Any)
 _TCov = TypeVar("_TCov", bound=Any, covariant=True)
@@ -86,6 +90,14 @@ class _InspectableProtocol(Protocol[_TCov]):
 
     def _sa_inspect_instance(self) -> _TCov:
         ...
+
+
+@overload
+def inspect(
+    subject: Engine,
+    raiseerr: bool = ...,
+) -> Inspector:
+    ...
 
 
 @overload
